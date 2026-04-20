@@ -61,6 +61,23 @@ struct Quaternion{
 	constexpr Quaternion(T a):r(a){}
 	constexpr Quaternion(const std::array<T,4> &a):r(a[0]),i(a[1]),j(a[2]),k(a[3]){}
 	constexpr Quaternion(const std::array<T,3> &a):r(0),i(a[0]),j(a[1]),k(a[2]){}
+	constexpr Quaternion(const std::initializer_list<T> &l){
+		if(l.size()==3){
+			r=0;
+			i=l.begin()[0];
+			j=l.begin()[1];
+			k=l.begin()[2];
+		}else{
+			if(l.size()==4){
+				r=l.begin()[0];
+				i=l.begin()[1];
+				j=l.begin()[2];
+				k=l.begin()[3];
+			}else{
+				r=i=j=k=0;
+			}
+		}
+	}
 	template <typename U>
 	Quaternion(const Quaternion<U> &a):r(a.r),i(a.i),j(a.j),k(a.k){}
 	Quaternion operator =(Quaternion a){
