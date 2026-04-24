@@ -10,6 +10,7 @@
 #include <tuple>
 #include <limits>
 #include <array>
+#include <complex>
 namespace Constants{
 	template<typename T>
 	inline constexpr T PI=T(3.14159265358979323846);
@@ -59,6 +60,7 @@ struct Quaternion{
 	constexpr Quaternion():r(0.0),i(0.0),j(0.0),k(0.0){}
 	constexpr Quaternion(T a,T b,T c,T d):r(a),i(b),j(c),k(d){}
 	constexpr Quaternion(T a):r(a){}
+	explicit constexpr Quaternion(const std::complex<T> &a):r(a.real()),i(a.imag()),j(0),k(0){}
 	constexpr Quaternion(const std::array<T,4> &a):r(a[0]),i(a[1]),j(a[2]),k(a[3]){}
 	constexpr Quaternion(const std::array<T,3> &a):r(0),i(a[0]),j(a[1]),k(a[2]){}
 	constexpr Quaternion(const std::initializer_list<T> &l){
@@ -737,10 +739,19 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 	if(s[0]!='+'&&s[0]!='-'){
 		s='+'+s;
 	}
+	if(s[s.size()-1]=='+'||s[s.size()-1]=='-'){
+		s.erase(s.size()-1,1);
+	}
+	while(s.find("++")!=std::string::npos){
+		s.erase(s.find("++"),1);
+	}
+	while(s.find("--")!=std::string::npos){
+		s.erase(s.find("--"),1);
+	}
 	std::vector<std::string>v;
 	int start=0;
 	for(int i=1;i<s.size();i++){
-		if(s[i]=='+'||(s[i]=='-'&&s[i-1]!='e')){
+		if(s[i]=='+'||(s[i]=='-'&&s[i-1]!='e'&&s[i-1]!='E')){
 			v.push_back(s.substr(start,i-start));
 			start=i;
 		}
@@ -761,7 +772,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 				in.setstate(std::ios::failbit);
 				return in;
 			}
-			q.i=(sign=='+')?val:-val;
+			q.i+=(sign=='+')?val:-val;
 		}else{
 			if(coe.find("j")!=-1){
 				std::string nn=coe.substr(0,coe.size()-1);
@@ -772,7 +783,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 					in.setstate(std::ios::failbit);
 					return in;
 				}
-				q.j=(sign=='+')?val:-val;
+				q.j+=(sign=='+')?val:-val;
 			}else{
 				if(coe.find("k")!=-1){
 					std::string nn=coe.substr(0,coe.size()-1);
@@ -783,10 +794,10 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 						in.setstate(std::ios::failbit);
 						return in;
 					}
-					q.k=(sign=='+')?val:-val;
+					q.k+=(sign=='+')?val:-val;
 				}else{
 					T val=std::stold(coe);
-					q.r=(sign=='+')?val:-val;
+					q.r+=(sign=='+')?val:-val;
 				}
 			}
 		}
@@ -873,38 +884,38 @@ std::ostream &operator <<(std::ostream &o,const Quaternion<T> &q){
 }
 #if __cplusplus>201103L
 namespace QLiterals{
-	Quaternion<float> operator"" _if(unsigned long long x){
+	Quaternion<float> operator""_if(unsigned long long x){
 		return Quaternion<float>(0,(float)x,0,0);
 	}
-	Quaternion<float> operator"" _if(long double x){
+	Quaternion<float> operator""_if(long double x){
 		return Quaternion<float>(0,(float)x,0,0);
 	}
-	Quaternion<float> operator"" _jf(unsigned long long x){
+	Quaternion<float> operator""_jf(unsigned long long x){
 		return Quaternion<float>(0,0,(float)x,0);
 	}
-	Quaternion<float> operator"" _jf(long double x){
+	Quaternion<float> operator""_jf(long double x){
 		return Quaternion<float>(0,0,(float)x,0);
 	}
-	Quaternion<float> operator"" _kf(unsigned long long x){
+	Quaternion<float> operator""_kf(unsigned long long x){
 		return Quaternion<float>(0,0,0,(float)x);
 	}
-	Quaternion<float> operator"" _kf(long double x){
+	Quaternion<float> operator""_kf(long double x){
 		return Quaternion<float>(0,0,0,(float)x);
 	}
-	Quaternion<float> operator"" _rf(unsigned long long x){
+	Quaternion<float> operator""_rf(unsigned long long x){
 		return Quaternion<float>((float)x,0,0,0);
 	}
-	Quaternion<float> operator"" _rf(long double x){
+	Quaternion<float> operator""_rf(long double x){
 		return Quaternion<float>((float)x,0,0,0);
 	}
-	Quaternion<float> operator"" _qf(const char* str,size_t len){
+	Quaternion<float> operator""_qf(const char* str,size_t len){
 		std::string s(str,len);
 		std::stringstream ss(s);
 		Quaternion<float> c;
 		ss>>c;
 		return c;
 	}
-	Quaternion<float> operator"" _pf(const char* str,size_t len){
+	Quaternion<float> operator""_pf(const char* str,size_t len){
 		std::string s(str,len);
 		if(s.find("<")==s.npos){
 			return Quaternion<float>(std::stof(s));
@@ -922,38 +933,38 @@ namespace QLiterals{
 		Quaternion<float> q=std::cos(theta/2)+u*std::sin(theta/2);
 		return q;
 	}
-	Quaternion<double> operator"" _id(unsigned long long x){
+	Quaternion<double> operator""_id(unsigned long long x){
 		return Quaternion<double>(0,(double)x,0,0);
 	}
-	Quaternion<double> operator"" _id(long double x){
+	Quaternion<double> operator""_id(long double x){
 		return Quaternion<double>(0,(double)x,0,0);
 	}
-	Quaternion<double> operator"" _jd(unsigned long long x){
+	Quaternion<double> operator""_jd(unsigned long long x){
 		return Quaternion<double>(0,0,(double)x,0);
 	}
-	Quaternion<double> operator"" _jd(long double x){
+	Quaternion<double> operator""_jd(long double x){
 		return Quaternion<double>(0,0,(double)x,0);
 	}
-	Quaternion<double> operator"" _kd(unsigned long long x){
+	Quaternion<double> operator""_kd(unsigned long long x){
 		return Quaternion<double>(0,0,0,(double)x);
 	}
-	Quaternion<double> operator"" _kd(long double x){
+	Quaternion<double> operator""_kd(long double x){
 		return Quaternion<double>(0,0,0,(double)x);
 	}
-	Quaternion<double> operator"" _rd(unsigned long long x){
+	Quaternion<double> operator""_rd(unsigned long long x){
 		return Quaternion<double>((double)x,0,0,0);
 	}
-	Quaternion<double> operator"" _rd(long double x){
+	Quaternion<double> operator""_rd(long double x){
 		return Quaternion<double>((double)x,0,0,0);
 	}
-	Quaternion<double> operator"" _qd(const char* str,size_t len){
+	Quaternion<double> operator""_qd(const char* str,size_t len){
 		std::string s(str,len);
 		std::stringstream ss(s);
 		Quaternion<double> c;
 		ss>>c;
 		return c;
 	}
-	Quaternion<double> operator"" _pd(const char* str,size_t len){
+	Quaternion<double> operator""_pd(const char* str,size_t len){
 		std::string s(str,len);
 		if(s.find("<")==s.npos){
 			return Quaternion<double>(std::stod(s));
@@ -971,38 +982,38 @@ namespace QLiterals{
 		Quaternion<double> q=std::cos(theta/2)+u*std::sin(theta/2);
 		return q;
 	}
-	Quaternion<long double> operator"" _ild(unsigned long long x){
+	Quaternion<long double> operator""_ild(unsigned long long x){
 		return Quaternion<long double>(0,(long double)x,0,0);
 	}
-	Quaternion<long double> operator"" _ild(long double x){
+	Quaternion<long double> operator""_ild(long double x){
 		return Quaternion<long double>(0,(long double)x,0,0);
 	}
-	Quaternion<long double> operator"" _jld(unsigned long long x){
+	Quaternion<long double> operator""_jld(unsigned long long x){
 		return Quaternion<long double>(0,0,(long double)x,0);
 	}
-	Quaternion<long double> operator"" _jld(long double x){
+	Quaternion<long double> operator""_jld(long double x){
 		return Quaternion<long double>(0,0,(long double)x,0);
 	}
-	Quaternion<long double> operator"" _kld(unsigned long long x){
+	Quaternion<long double> operator""_kld(unsigned long long x){
 		return Quaternion<long double>(0,0,0,(long double)x);
 	}
-	Quaternion<long double> operator"" _kld(long double x){
+	Quaternion<long double> operator""_kld(long double x){
 		return Quaternion<long double>(0,0,0,(long double)x);
 	}
-	Quaternion<long double> operator"" _rld(unsigned long long x){
+	Quaternion<long double> operator""_rld(unsigned long long x){
 		return Quaternion<long double>((long double)x,0,0,0);
 	}
-	Quaternion<long double> operator"" _rld(long double x){
+	Quaternion<long double> operator""_rld(long double x){
 		return Quaternion<long double>((long double)x,0,0,0);
 	}
-	Quaternion<long double> operator"" _qld(const char* str,size_t len){
+	Quaternion<long double> operator""_qld(const char* str,size_t len){
 		std::string s(str,len);
 		std::stringstream ss(s);
 		Quaternion<long double> c;
 		ss>>c;
 		return c;
 	}
-	Quaternion<long double> operator"" _pld(const char* str,size_t len){
+	Quaternion<long double> operator""_pld(const char* str,size_t len){
 		std::string s(str,len);
 		if(s.find("<")==s.npos){
 			return Quaternion<long double>(std::stold(s));
@@ -1020,9 +1031,6 @@ namespace QLiterals{
 		Quaternion<long double> q=std::cos(theta/2)+u*std::sin(theta/2);
 		return q;
 	}
-}
-namespace std{
-	using namespace QLiterals;
 }
 #endif//C++14
 #endif/*QUATERNION_HPP*/
