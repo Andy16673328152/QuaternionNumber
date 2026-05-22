@@ -31,10 +31,21 @@ This library provides quaternion basic operations,transcendental functions and l
 #else
 #define HAS_EIGEN 0
 #endif
+#if __cplusplus >=202002L
+#define MAYBE_CONSTEXPR constexpr
+#include <numbers>
+#else
+#define MAYBE_CONSTEXPR inline
+#endif
 //Constants
 namespace Constants{
+	#if __cplusplus>=202002L
+	template<typename T>
+	inline constexpr T PI=std::numbers::pi_v<T>;
+	#else
 	template<typename T>
 	inline constexpr T PI=T(3.14159265358979323846);
+	#endif
 	template<typename T>
 	inline constexpr T eps=T(1e-10);
 }
@@ -48,11 +59,28 @@ std::string TrimTrailingZeros(std::string a){
     return a;
 }
 template <typename T>
+T stot(const std::string &s){
+	static_assert(std::is_same<T,float>::value||std::is_same<T,double>::value||std::is_same<T,long double>::value,"T must be 'float','double' or 'long double',not 'int'");
+	if constexpr(std::is_same<T,float>::value){
+		return std::stof(s);
+	}
+	if constexpr(std::is_same<T,double>::value){
+		return std::stod(s);
+	}
+	if constexpr(std::is_same<T,long double>::value){
+		return std::stold(s);
+	}
+}
+template <typename T>
 struct Quaternion{
 	static_assert(std::is_same<T,float>::value||std::is_same<T,double>::value||std::is_same<T,long double>::value,"T must be 'float','double' or 'long double',not 'int'");
 	T r,i,j,k;
+	T& w=r;
+	T& x=i;
+	T& y=j;
+	T& z=k;
 	constexpr Quaternion conj()const{
-		return {r,-i,-j,-k};
+		return Quaternion(r,-i,-j,-k);
 	}
 	//getters and setters
 	constexpr T real()const{
@@ -80,13 +108,13 @@ struct Quaternion{
 		k=val;
 	}
 	//constructors
-	constexpr Quaternion():r(0.0),i(0.0),j(0.0),k(0.0){}
-	constexpr Quaternion(T a,T b,T c,T d):r(a),i(b),j(c),k(d){}
-	constexpr Quaternion(T a):r(a){}
-	explicit constexpr Quaternion(const std::complex<T> &a):r(a.real()),i(a.imag()),j(0),k(0){}
-	constexpr Quaternion(const std::array<T,4> &a):r(a[0]),i(a[1]),j(a[2]),k(a[3]){}
-	constexpr Quaternion(const std::array<T,3> &a):r(0),i(a[0]),j(a[1]),k(a[2]){}
-	constexpr Quaternion(const std::initializer_list<T> &l){
+	constexpr Quaternion()noexcept:r(0.0),i(0.0),j(0.0),k(0.0){}
+	explicit constexpr Quaternion(T a,T b,T c,T d)noexcept:r(a),i(b),j(c),k(d){}
+	explicit constexpr Quaternion(T a)noexcept:r(a){}
+	explicit constexpr Quaternion(const std::complex<T> &a)noexcept:r(a.real()),i(a.imag()),j(0),k(0){}
+	explicit constexpr Quaternion(const std::array<T,4> &a)noexcept:r(a[0]),i(a[1]),j(a[2]),k(a[3]){}
+	explicit constexpr Quaternion(const std::array<T,3> &a)noexcept:r(0),i(a[0]),j(a[1]),k(a[2]){}
+	explicit constexpr Quaternion(const std::initializer_list<T> &l)noexcept{
 		if(l.size()==3){
 			r=0;
 			i=l.begin()[0];
@@ -104,7 +132,7 @@ struct Quaternion{
 		}
 	}
 	template <typename U>
-	Quaternion(const Quaternion<U> &a):r(a.r),i(a.i),j(a.j),k(a.k){}
+	explicit Quaternion(const Quaternion<U> &a)noexcept:r(a.r),i(a.i),j(a.j),k(a.k){}
 	Quaternion& operator =(const Quaternion &a){
 		r=a.r;
 		i=a.i;
@@ -165,7 +193,10 @@ struct Quaternion{
 		}
 	}
 	static Quaternion identity(){
-		return Quaternion(1.0);
+		return Quaternion(T(1));
+	}
+	static Quaternion zero(){
+		return Quaternion();
 	}
 	static Quaternion unit(T r,T i,T j,T k){
 		Quaternion q(r,i,j,k);
@@ -174,30 +205,44 @@ struct Quaternion{
 	Quaternion& normalize(){
 		T al=std::sqrt(r*r+i*i+j*j+k*k);
 		if(al>Constants::eps<T>){
-			r/=al;
-			i/=al;
-			j/=al;
-			k/=al;
+			T ial=T(1)/al;
+			r*=ial;
+			i*=ial;
+			j*=ial;
+			k*=ial;
 		}
 		return *this;
 	}
 	Quaternion normalized()const{
-		Quaternion re(*this);
-		return re.normalize();
+		T al=std::sqrt(r*r+i*i+j*j+k*k);
+		if(al>Constants::eps<T>){
+			T ial=T(1)/al;
+			return Quaternion(r*ial,i*ial,j*ial,k*ial);
+		}
+		return *this;
+	}
+	Quaternion normalized(T norm)const{
+		T al=std::sqrt(norm);
+		if(al>Constants::eps<T>){
+			T ial=T(1)/al;
+			return Quaternion(r*ial,i*ial,j*ial,k*ial);
+		}
+		return *this;
 	}
 	//Determine whether a quaternion number is a unit quaternion number
-	bool isunit(T eeps=Constants::eps<T>)const{
+	MAYBE_CONSTEXPR bool isunit(T eeps=Constants::eps<T>)const{
 		T alsq=r*r+i*i+j*j+k*k;
 		return std::abs(alsq-1)<eeps;
 	}
 	//(x,y,z),theta->quaternion
-	static Quaternion FromAxisAngle(T angle,T x,T y,T z){
-		Quaternion q(std::cos(angle/2),x*std::sin(angle/2),y*std::sin(angle/2),z*std::sin(angle/2));
+	MAYBE_CONSTEXPR static Quaternion FromAxisAngle(T angle,T x,T y,T z){
+		T semiangle=angle/2.0;
+		Quaternion q(std::cos(semiangle),x*std::sin(semiangle),y*std::sin(semiangle),z*std::sin(semiangle));
 		return q.normalized();
 	} 
 	//quaternion->rotation matrix
-	std::array<T,9> ToRotationMatrix()const{
-		T xx=r*r,yy=i*i,zz=j*j,ww=k*k,xy=r*i,xz=r*j,xw=r*k,yz=i*j,yw=i*k,zw=j*k;
+	MAYBE_CONSTEXPR std::array<T,9> ToRotationMatrix()const{
+		T ww=r*r,xx=i*i,yy=j*j,zz=k*k,xw=r*i,yw=r*j,zw=r*k,xy=i*j,xz=i*k,yz=j*k;
 		return {
 			1-2*(yy+zz),2*(xy-zw),2*(xz+yw),
 			2*(xy+zw),1-2*(xx+zz),2*(yz-xw),
@@ -210,29 +255,32 @@ struct Quaternion{
 		Quaternion q;
 		if(t>0){
 	 		T s=2.0*(std::sqrt(t+1));
+	 		T is=T(1)/s;
 	 		q.r=0.25*s;
-	 		q.i=(mat[5]-mat[7])/s;
-	 		q.j=(mat[6]-mat[2])/s;
-	 		q.k=(mat[1]-mat[3])/s;
+	 		q.i=(mat[5]-mat[7])*is;
+	 		q.j=(mat[6]-mat[2])*is;
+	 		q.k=(mat[1]-mat[3])*is;
 		}else{
 		 	if(mat[0]>mat[4]&&mat[0]>mat[8]){
-		 		T s=2.0*std::sqrt(1.0+mat[0]-mat[4]-mat[8]);
-		 		q.r=(mat[5]-mat[7])/s;
+		 		T s=2.0*std::sqrt(T(1)+mat[0]-mat[4]-mat[8]);
+		 		T is=T(1)/s;
+		 		q.r=(mat[5]-mat[7])*is;
 		 		q.i=0.25*s;
-		 		q.j=(mat[3]+mat[1])/s;
-		 		q.k=(mat[6]+mat[2])/s;
+		 		q.j=(mat[3]+mat[1])*is;
+		 		q.k=(mat[6]+mat[2])*is;
 			}else{
 				if(mat[4]>mat[8]){
-					T s=2.0*std::sqrt(1.0+mat[4]-mat[0]-mat[8]);
+					T s=2.0*std::sqrt(T(1)+mat[4]-mat[0]-mat[8]);
 					q.r=(mat[6]-mat[2])/s;
 					q.i=(mat[3]+mat[1])/s;
 					q.j=0.25*s;
 					q.k=(mat[7]+mat[5])/s;
 				}else{
-					T s=2.0*std::sqrt(1.0+mat[8]-mat[4]-mat[0]);
-					q.r=(mat[1]-mat[3])/s;
-					q.i=(mat[6]+mat[2])/s;
-					q.j=(mat[7]+mat[5])/s;
+					T s=2.0*std::sqrt(T(1)+mat[8]-mat[4]-mat[0]);
+					T is=T(1)/s;
+					q.r=(mat[1]-mat[3])*is;
+					q.i=(mat[6]+mat[2])*is;
+					q.j=(mat[7]+mat[5])*is;
 					q.k=0.25*s;
 				}
 			}
@@ -243,11 +291,10 @@ struct Quaternion{
 		XYZ,XZY,YXZ,YZX,ZXY,ZYX
 	};
 	//quaternion->(roll,pitch,yaw)
-	std::array<T,3> ToEulerAngles(EulerOrder order=EulerOrder::XYZ)const{
+	MAYBE_CONSTEXPR std::array<T,3> ToEulerAngles(EulerOrder order=EulerOrder::XYZ,T epss=Constants::eps<T>)const{
 		Quaternion q=this->normalized();
 		T w=q.r,x=q.i,y=q.j,z=q.k;
 		T roll,pitch,yaw;
-		const T epss=T(0.999999);
 		auto clasin=[](T val){
 			return std::asin(std::max(T(-1),std::min(T(1),val)));
 		};
@@ -379,15 +426,15 @@ struct Quaternion{
 				return Quaternion(1,0,0,0);
 		}
 	}
-	std::array<T,3> RotateVector(T x,T y,T z)const{
+	MAYBE_CONSTEXPR std::array<T,3> RotateVector(T x,T y,T z)const{
 		T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
 		return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
 	}
-	std::array<T,3> RotateVector(const std::array<T,3> &v)const{
+	MAYBE_CONSTEXPR std::array<T,3> RotateVector(const std::array<T,3> &v)const{
 		return RotateVector(v[0],v[1],v[2]);
 	}
 	//axis(x,y,z)
-	std::array<T,3> axis()const{
+	MAYBE_CONSTEXPR std::array<T,3> axis()const{
 		if(std::isnan(r)||std::isnan(i)||std::isnan(j)||std::isnan(k)){
 			return {1,0,0};
 		}
@@ -396,26 +443,42 @@ struct Quaternion{
 		if(a<Constants::eps<T>||std::isnan(a)){
 			return {1,0,0};
 		}
-		return {i/a,j/a,k/a};
+		T ia=T(1)/a;
+		return {i*ia,j*ia,k*ia};
 	}
 	//theta
-	T angle()const{
+	MAYBE_CONSTEXPR T angle()const{
 		if(std::isnan(r)||std::isnan(i)||std::isnan(j)||std::isnan(k)){
 			return T(0);
 		}
 		T cr=std::max(T(-1),std::min(T(1),r));
-		return 2*std::acos(cr);
+		return 2.0*std::acos(cr);
 	}
-	T angleDegrees()const{
+	MAYBE_CONSTEXPR T angleDegrees()const{
 		return angle()*180/Constants::PI<T>;
 	}
-	//1.0/(*this)
-	Quaternion inverse()const{
+	//T(1)/(*this)
+	MAYBE_CONSTEXPR Quaternion inverse()const{
+		if(iszero(*this)){
+			return Quaternion();
+		}
 		return (this->conj())/(r*r+i*i+j*j+k*k);
 	}
 };
 //tuple
 namespace std{
+	template<std::size_t N,typename T>
+	decltype(auto) get(const Quaternion<T> &q){
+		return q.template get<N>();
+	}
+	template<std::size_t N,typename T>
+	decltype(auto) get(Quaternion<T> &q){
+		return q.template get<N>();
+	}
+	template<std::size_t N,typename T>
+	decltype(auto) get(Quaternion<T>&& q){
+		return std::forward<Quaternion<T> >(q).template get<N>();
+	}
 	template<typename T>
 	struct tuple_size<Quaternion<T> >:std::integral_constant<size_t,4>{};
 	template<typename T>
@@ -477,109 +540,120 @@ Quaternion<double> from_eigenqd(const Quaterniond &q){
 #endif
 //basic operators
 template<typename T>
-Quaternion<T> operator +(Quaternion<T> a,T b){
-	a.r+=b;
-	return a;
+MAYBE_CONSTEXPR Quaternion<T> operator +(const Quaternion<T> &a,T b){
+	return Quaternion<T>(a.r+b,a.i,a.j,a.k);
 } 
 template<typename T>
-Quaternion<T> operator +(T a,Quaternion<T> b){
-	b.r+=a;
-	return b;
+MAYBE_CONSTEXPR Quaternion<T> operator +(T a,const Quaternion<T> &b){
+	return Quaternion<T>(b.r+a,b.i,b.j,b.k);
 }
 template<typename T>
-Quaternion<T> operator -(Quaternion<T> a,T b){
-	a.r-=b;
-	return a;
+MAYBE_CONSTEXPR Quaternion<T> operator -(const Quaternion<T> &a,T b){
+	return Quaternion<T>(a.r-b,a.i,a.j,a.k);
 } 
 template<typename T>
-Quaternion<T> operator -(Quaternion<T> a){
-	return {-a.r,-a.i,-a.j,-a.k};
+MAYBE_CONSTEXPR Quaternion<T> operator -(const Quaternion<T> &a){
+	return Quaternion<T>(-a.r,-a.i,-a.j,-a.k);
 }
 template<typename T>
-Quaternion<T> operator -(T a,Quaternion<T> b){
-	b.r-=a;
-	b=-b;
-	return b;
+MAYBE_CONSTEXPR Quaternion<T> operator -(T a,const Quaternion<T> &b){
+	return Quaternion<T>(a-b.r,-b.i,-b.j,-b.k);
 }
 template<typename T>
-Quaternion<T> operator *(Quaternion<T> a,T b){
-	a.r*=b;
-	a.i*=b;
-	a.j*=b;
-	a.k*=b;
-	return a;
+MAYBE_CONSTEXPR Quaternion<T> operator *(const Quaternion<T> &a,T b){
+	return Quaternion<T>(a.r*b,a.i*b,a.j*b,a.k*b);
 }
 template<typename T>
-Quaternion<T> operator *(T a,Quaternion<T> b){
-	b.r*=a;
-	b.i*=a;
-	b.j*=a;
-	b.k*=a;
-	return b;
+MAYBE_CONSTEXPR Quaternion<T> operator *(T a,const Quaternion<T> &b){
+	return Quaternion<T>(b.r*a,b.i*a,b.j*a,b.k*a);
 }
 template<typename T>
-Quaternion<T> operator /(Quaternion<T> a,T b){
+MAYBE_CONSTEXPR Quaternion<T> operator /(Quaternion<T> a,T b){
 	if(std::abs(b)<Constants::eps<T>){
 		throw std::runtime_error("Division by zero");
 	}
-	a.r/=b;
-	a.i/=b;
-	a.j/=b;
-	a.k/=b;
-	return a;
+	T ib=T(1)/b;
+	return Quaternion<T>(a.r*ib,a.i*ib,a.j*ib,a.k*ib);
 }
 template<typename T>
-T abs(Quaternion<T> a){
+MAYBE_CONSTEXPR T abs(const Quaternion<T> &a){
 	return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
 }
 template<typename T>
-Quaternion<T> operator /(T a,Quaternion<T> b){
-	if(abs(b)<Constants::eps<T>){
+MAYBE_CONSTEXPR Quaternion<T> operator /(T a,const Quaternion<T> &b){
+	T mb=abs(b);
+	if(mb<Constants::eps<T>){
 		throw std::runtime_error("Division by zero");
 	}
-	return a*(b.conj()/(abs(b)*abs(b)));
+	return a*(b.conj()/(mb*mb));
 }
 template<typename T>
-Quaternion<T> operator +(Quaternion<T> a,Quaternion<T> b){
-	a.r+=b.r;
-	a.i+=b.i;
-	a.j+=b.j;
-	a.k+=b.k;
-	return a;
+MAYBE_CONSTEXPR Quaternion<T> operator +(const Quaternion<T> &a,const Quaternion<T> &b){
+	return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
 }
 template<typename T>
-Quaternion<T> operator -(Quaternion<T> a,Quaternion<T> b){
-	a.r-=b.r;
-	a.i-=b.i;
-	a.j-=b.j;
-	a.k-=b.k;
-	return a;
+MAYBE_CONSTEXPR Quaternion<T> operator -(const Quaternion<T> &a,const Quaternion<T> &b){
+	return Quaternion<T>(a.r-b.r,a.i-b.i,a.j-b.j,a.k-b.k);
 }
 template<typename T>
-Quaternion<T> operator *(Quaternion<T> a,Quaternion<T> b){
+MAYBE_CONSTEXPR Quaternion<T> operator *(Quaternion<T> a,Quaternion<T> b){
 	return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
 }
 template<typename T>
-std::array<T,3> operator *(Quaternion<T> a,std::array<T,3> v){
+MAYBE_CONSTEXPR std::array<T,3> operator *(const Quaternion<T> &a,std::array<T,3> v){
 	Quaternion<T> h=pure(a*Quaternion(v)*a.inverse());
 	return {h.i,h.j,h.k};
 }
 template<typename T>
-Quaternion<T> operator /(Quaternion<T> a,Quaternion<T> b){
-	return a*(1.0/b);
+MAYBE_CONSTEXPR Quaternion<T> operator /(const Quaternion<T> &a,const Quaternion<T> &b){
+	return a*(T(1)/b);
 }
 template<typename T>
-bool operator ==(Quaternion<T> a,Quaternion<T> b){
-	if(std::isnan(a.r)||std::isnan(a.i)||std::isnan(a.j)||std::isnan(a.k)||std::isnan(b.r)||std::isnan(b.i)||std::isnan(b.j)||std::isnan(b.k)){
+MAYBE_CONSTEXPR bool isnan(const Quaternion<T> &a){
+	return std::isnan(a.r)||std::isnan(a.i)||std::isnan(a.j)||std::isnan(a.k);
+}
+template<typename T>
+MAYBE_CONSTEXPR bool isinf(const Quaternion<T> &a){
+	return std::isinf(a.r)||std::isinf(a.i)||std::isinf(a.j)||std::isinf(a.k);
+}
+template<typename T>
+MAYBE_CONSTEXPR bool ispure(const Quaternion<T> &a){
+	return std::abs(a.r)<Constants::eps<T>;
+}
+template<typename T>
+MAYBE_CONSTEXPR bool isnormalized(const Quaternion<T> &a){
+	return std::abs(abs(a)-T(1))<Constants::eps<T>; 
+}
+template<typename T>
+MAYBE_CONSTEXPR bool iszero(const Quaternion<T> &a){
+	return std::abs(a.r)<Constants::eps<T>&&std::abs(a.i)<Constants::eps<T>&&std::abs(a.j)<Constants::eps<T>&&std::abs(a.k)<Constants::eps<T>;
+}
+template<typename T>
+MAYBE_CONSTEXPR bool isidentity(const Quaternion<T> &a){
+	return std::abs(a.r-T(1))<Constants::eps<T>&&std::abs(a.i)<Constants::eps<T>&&std::abs(a.j)<Constants::eps<T>&&std::abs(a.k)<Constants::eps<T>;
+}
+template<typename T>
+MAYBE_CONSTEXPR bool operator ==(const Quaternion<T> &a,const Quaternion<T> &b){
+	if(isnan(a)||isnan(b)){
 		return false;
 	}
-	if(std::isinf(a.r)||std::isinf(a.i)||std::isinf(a.j)||std::isinf(a.k)||std::isinf(b.r)||std::isinf(b.i)||std::isinf(b.j)||std::isinf(b.k)){
+	if(isinf(a)||isinf(b)){
 		return (a.r==b.r)&&(a.i==b.i)&&(a.j==b.j)&&(a.k==b.k);
 	}
 	return (std::abs(a.r-b.r)<Constants::eps<T>)&&(std::abs(a.i-b.i)<Constants::eps<T>)&&(std::abs(a.j-b.j)<Constants::eps<T>)&&(std::abs(a.k-b.k)<Constants::eps<T>);
 }
 template<typename T>
-bool operator !=(Quaternion<T> a,Quaternion<T> b){
+MAYBE_CONSTEXPR bool almost_equal(const Quaternion<T> &a,const Quaternion<T> &b,T eeps=Constants::eps<T>){
+	if(isnan(a)||isnan(b)){
+		return false;
+	}
+	if(isinf(a)||isinf(b)){
+		return (a.r==b.r)&&(a.i==b.i)&&(a.j==b.j)&&(a.k==b.k);
+	}
+	return (std::abs(a.r-b.r)<eeps)&&(std::abs(a.i-b.i)<eeps)&&(std::abs(a.j-b.j)<eeps)&&(std::abs(a.k-b.k)<eeps);
+}
+template<typename T>
+MAYBE_CONSTEXPR bool operator !=(const Quaternion<T> &a,const Quaternion<T> &b){
 	return !(a==b);
 }
 template<typename T>
@@ -604,60 +678,70 @@ Quaternion<T>& operator /=(Quaternion<T> &a,const Quaternion<T> &b){
 }
 //pure quaternion
 template<typename T>
-Quaternion<T> pure(Quaternion<T> a){
+MAYBE_CONSTEXPR Quaternion<T> pure(const Quaternion<T> &a){
 	return Quaternion<T>(0.0,a.i,a.j,a.k);
 }
 //logarithmic functions
 template<typename T>
-Quaternion<T> log(Quaternion<T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> log(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T mg=abs(a);
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::log(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
-	return std::log(abs(a))+u*std::acos(a.r/abs(a));
+	T ipa=T(1)/pa;
+	T img=T(1)/mg;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+	return std::log(mg)+u*std::acos(a.r*img);
 }
 template<typename T>
-Quaternion<T> log10(Quaternion<T> a){
+MAYBE_CONSTEXPR Quaternion<T> log10(const Quaternion<T> &a){
 	return log(a)/std::log(10);
 }
 template<typename T>
-Quaternion<T> log2(Quaternion<T> a){
+MAYBE_CONSTEXPR Quaternion<T> log2(const Quaternion<T> &a){
 	return log(a)/std::log(2);
 }
 template<typename T>
-Quaternion<T> logp(Quaternion<T> a,Quaternion<T> b){
+MAYBE_CONSTEXPR Quaternion<T> logp(const Quaternion<T> &a,const Quaternion<T> &b){
 	return log(a)/log(b);
 }
 //power functions
 template<typename T>
-Quaternion<T> exp(Quaternion<T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> exp(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::exp(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
+	T ipa=T(1)/pa;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
 }
 template<typename T>
-Quaternion<T> pow(Quaternion<T> a,Quaternion<T> b){
+MAYBE_CONSTEXPR Quaternion<T> pow(const Quaternion<T> &a,const Quaternion<T> &b){
 	return exp(log(a)*b);
 }
 template<typename T>
-Quaternion<T> nthrt(Quaternion<T> a,Quaternion<T> b){
-	return pow(a,1.0/b);
+MAYBE_CONSTEXPR Quaternion<T> nthrt(const Quaternion<T> &a,const Quaternion<T> &b){
+	return pow(a,T(1)/b);
 }
 template<typename T>
-Quaternion<T> sqrt(Quaternion<T> a){
+MAYBE_CONSTEXPR Quaternion<T> sqrt(const Quaternion<T> &a){
 	return nthrt(a,Quaternion<T>(2.0));
 }
 template<typename T>
-Quaternion<T> cbrt(Quaternion<T> a){
+MAYBE_CONSTEXPR Quaternion<T> cbrt(const Quaternion<T> &a){
 	return nthrt(a,Quaternion<T>(3.0));
 }
-//a ��b 
+//a ·b 
 template<typename T>
-T dot(Quaternion<T> a,Quaternion<T> b){
+MAYBE_CONSTEXPR T dot(const Quaternion<T> &a,const Quaternion<T> &b){
 	return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
 }
 
@@ -667,13 +751,13 @@ Quaternion<T> unit(T b,T c,T d){
 }
 //sphere linear interpolation
 template<typename T>
-Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &b,T t){
-	T d=dot(a,b),sign=1;
+MAYBE_CONSTEXPR Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &b,T t,T eeps=Constants::eps<T>){
+	T d=dot(a,b),sign=T(1);
 	if(d<0){
 		d=-d;
-		sign=-1;
+		sign=-T(1);
 	}
-	const T dt=T(0.9995);
+	const T dt=eeps;
 	if(d>dt){
 		Quaternion<T> q=a+(b*sign-a)*t;
 		return q.normalized();
@@ -687,18 +771,21 @@ Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &b,T t){
 }
 //n-th root
 template<typename T>
-Quaternion<T> omega(Quaternion<T> a,int n,int k){
+MAYBE_CONSTEXPR Quaternion<T> omega(const Quaternion<T> &a,int n,int k){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
 	k%=n;
 	if(a.is_real()){
 		if(std::abs(a.r)<Constants::eps<T>){
 			return Quaternion(0.0);
 		}else{
 			if(a.r>0){
-				T poww=std::pow(a.r,1.0/n);
+				T poww=std::pow(a.r,T(1)/n);
 				Quaternion<T> q(std::cos(2*Constants::PI<T>*k/n),std::sin(2*Constants::PI<T>*k/n),0,0);
 				return poww*q;
 			}else{
-				T poww=std::pow(-a.r,1.0/n);
+				T poww=std::pow(-a.r,T(1)/n);
 				Quaternion<T> q(std::cos((Constants::PI<T>+2*Constants::PI<T>*k)/n),std::sin((Constants::PI<T>+2*Constants::PI<T>*k)/n),0,0);
 				return poww*q;
 			}
@@ -706,94 +793,146 @@ Quaternion<T> omega(Quaternion<T> a,int n,int k){
 	}
 	T r=abs(a),theta=a.angle();
 	Quaternion<T> u=pure(a)/std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
-	return std::pow(r,1.0/n)*(std::cos((theta+2*Constants::PI<T>*k)/n)+u*std::sin((theta+2*Constants::PI<T>*k)/n));
+	return std::pow(r,T(1)/n)*(std::cos((theta+2*Constants::PI<T>*k)/n)+u*std::sin((theta+2*Constants::PI<T>*k)/n));
 }
 //trigonometric functions
 template<typename T>
-Quaternion<T> sin(Quaternion<T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> sin(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::sin(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
+	T ipa=T(1)/pa;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
 }
 template<typename T>
-Quaternion<T> cos(Quaternion<T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> cos(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::cos(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
+	T ipa=T(1)/pa;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
 }
 template<typename T>
-Quaternion<T> tan(Quaternion<T> a){
+MAYBE_CONSTEXPR Quaternion<T> tan(const Quaternion<T> &a){
 	return sin(a)/cos(a);
 }
 //inverse trigonometric functions
 template<typename T>
-Quaternion<T> asin(Quaternion<T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> asin(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::asin(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
-	return -u*log(a*u+sqrt(1.0-a*a));
+	T ipa=T(1)/pa;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+	return -u*log(a*u+sqrt(T(1)-a*a));
 }
 template<typename T>
-Quaternion<T> acos(Quaternion<T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> acos(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::acos(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
-	return -u*log(a+u*sqrt(1.0-a*a));
+	T ipa=T(1)/pa;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+	return -u*log(a+u*sqrt(T(1)-a*a));
 }
 template<typename T>
-Quaternion<T> atan(Quaternion<T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> atan(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::atan(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
+	T ipa=T(1)/pa;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return (u/2.0)*log((u+a)/(u-a));
 }
 //hyperbolic functions
 template<typename T>
-Quaternion<T> sinh(Quaternion<T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> sinh(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::sinh(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
+	T ipa=T(1)/pa;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
 }
 template<typename T>
-Quaternion<T> cosh(Quaternion <T> a){
-	T pa=abs(pure(a));
+MAYBE_CONSTEXPR Quaternion<T> cosh(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
 		return Quaternion<T>(std::cosh(a.r),0,0,0);
 	}
-	Quaternion<T> u(0.0,a.i/pa,a.j/pa,a.k/pa);
+	T ipa=T(1)/pa;
+	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
 }
 template<typename T>
-Quaternion<T> tanh(Quaternion<T> a){
+MAYBE_CONSTEXPR Quaternion<T> tanh(const Quaternion<T> &a){
 	return sinh(a)/cosh(a);
 }
 //inverse hyperbolic functions
 template<typename T>
-Quaternion<T> asinh(Quaternion<T> a){
-	return log(a+sqrt(a*a+1.0));
+MAYBE_CONSTEXPR Quaternion<T> asinh(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	return log(a+sqrt(a*a+T(1)));
 }
 template<typename T>
-Quaternion<T> acosh(Quaternion<T> a){
-	return log(a+sqrt(a-1.0)*sqrt(a+1.0));
+MAYBE_CONSTEXPR Quaternion<T> acosh(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	if(isidentity(-a)){
+		throw std::domain_error("acosh:singular point -1");
+	}
+	T w2=a.r*a.r,v2=abs(pure(a));
+	if(std::abs(w2-v2-T(1))<Constants::eps<T>&&v2>Constants::eps<T>){
+		Quaternion<T> sq=sqrt(T(1)-a*a);
+		return log(a+Quaternion<T>(0,1,0,0)*sq);
+	}
+	return log(a+sqrt(a-T(1))*sqrt(a+T(1)));
 }
 template<typename T>
-Quaternion<T> atanh(Quaternion<T> a){
-	return 0.5*log((1.0+a)/(1.0-a)); 
+MAYBE_CONSTEXPR Quaternion<T> atanh(const Quaternion<T> &a){
+	if(isnan(a)){
+		return Quaternion<T>();
+	}
+	if(isidentity(a)){
+		throw std::domain_error("atanh:singular point 1");
+	}
+	T w2=a.r*a.r,v2=abs(pure(a));
+	if(std::abs(w2-v2-T(1))<Constants::eps<T>&&v2>Constants::eps<T>){
+		throw std::domain_error("atanh:input in pathological domain");
+	}
+	return 0.5*log((T(1)+a)/(T(1)-a)); 
 }
 //string->quaternion
 template<typename T>
@@ -815,11 +954,23 @@ std::string to_string(Quaternion<T> q){
 //a+bi+cj+dk or (a,b,c)<d
 template<typename T>
 std::istream &operator >>(std::istream &in,Quaternion<T> &q){
+	q=Quaternion<T>();
+	in>>std::ws;
+	if(!in){
+		return in;
+	}
 	std::string s;
-	in>>s;
-	s.erase(remove_if(s.begin(),s.end(),::isspace),s.end());
+	char c;
+	while(in.get(c)){
+		if(c=='\n'||c=='\r'){
+			in.unget();
+			break;
+		}
+		s.push_back(c);
+	}
+	s.erase(remove_if(s.begin(),s.end(),[](unsigned char c){return std::isspace(c);}),s.end());
 	if(s.empty()){
-		q=Quaternion<T>(0.0,0.0,0.0,0.0);
+		q=Quaternion<T>();
 		return in;
 	}
 	if(s.find("<")!=-1){
@@ -831,8 +982,8 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		s1.erase(0,s3.size()+1);
 		std::string s4=s1.substr(0,s1.find(","));
 		s1.erase(0,s4.size()+1);
-		Quaternion<T> u(0.0,std::stold(s3),std::stold(s4),std::stold(s1));
-		T theta=stold(s2);
+		Quaternion<T> u(0.0,stot<T>(s3),stot<T>(s4),stot<T>(s1));
+		T theta=stot<T>(s2);
 		q=std::cos(theta/2)+u*std::sin(theta/2);
 		return in;
 	}
@@ -842,16 +993,30 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 	if(s[s.size()-1]=='+'||s[s.size()-1]=='-'){
 		s.erase(s.size()-1,1);
 	}
-	while(s.find("++")!=std::string::npos){
-		s.erase(s.find("++"),1);
+	unsigned long long w=s.find("+-"),x=s.find("-+"),y=s.find("++"),z=s.find("--");
+	while(w!=std::string::npos||x!=std::string::npos||y!=std::string::npos||z!=std::string::npos){
+		if(w!=std::string::npos){
+			s.erase(w,1);
+		}
+		if(x!=std::string::npos){
+			s.erase(x,1);
+		}
+		if(y!=std::string::npos){
+			s.erase(y,1);
+		}
+		if(z!=std::string::npos){
+			s.erase(z,1);
+		}
+		w=s.find("+-"),x=s.find("-+"),y=s.find("++"),z=s.find("--");
 	}
-	while(s.find("--")!=std::string::npos){
-		s.erase(s.find("--"),1);
+	if(s.empty()||(s.size()==1&&(s[0]=='+'||s[0]=='-'))){
+		q=Quaternion<T>();
+		return in;
 	}
 	std::vector<std::string>v;
 	int start=0;
 	for(int i=1;i<s.size();i++){
-		if(s[i]=='+'||(s[i]=='-'&&s[i-1]!='e'&&s[i-1]!='E')){
+		if((s[i]=='+'&&s[i-1]!='e'&&s[i-1]!='E')||(s[i]=='-'&&s[i-1]!='e'&&s[i-1]!='E')){
 			v.push_back(s.substr(start,i-start));
 			start=i;
 		}
@@ -867,10 +1032,10 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 			std::string nn=coe.substr(0,coe.size()-1);
 			T val;
 			try{
-				val=nn.empty()?1.0L:std::stold(nn);
+				val=nn.empty()?T(1):stot<T>(nn);
 			}catch(const std::exception& e){
-				in.setstate(std::ios::failbit);
-				return in;
+				q=Quaternion<T>();
+				throw std::invalid_argument("There are illegal characters in the input");
 			}
 			q.i+=(sign=='+')?val:-val;
 		}else{
@@ -878,10 +1043,10 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 				std::string nn=coe.substr(0,coe.size()-1);
 				T val;
 				try{
-					val=nn.empty()?1.0L:std::stold(nn);
+					val=nn.empty()?T(1):stot<T>(nn);
 				}catch(const std::exception& e){
-					in.setstate(std::ios::failbit);
-					return in;
+					q=Quaternion<T>();
+					throw std::invalid_argument("There are illegal characters in the input");
 				}
 				q.j+=(sign=='+')?val:-val;
 			}else{
@@ -889,14 +1054,14 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 					std::string nn=coe.substr(0,coe.size()-1);
 					T val;
 					try{
-						val=nn.empty()?1.0L:std::stold(nn);
+						val=nn.empty()?T(1):stot<T>(nn);
 					}catch(const std::exception& e){
-						in.setstate(std::ios::failbit);
-						return in;
+						q=Quaternion<T>();
+						throw std::invalid_argument("There are illegal characters in the input");
 					}
 					q.k+=(sign=='+')?val:-val;
 				}else{
-					T val=std::stold(coe);
+					T val=stot<T>(coe);
 					q.r+=(sign=='+')?val:-val;
 				}
 			}
@@ -933,51 +1098,63 @@ std::ostream &operator <<(std::ostream &o,const Quaternion<T> &q){
 		o<<s1;
 		flag=1;
 	}
-	if(std::abs(q.i)>Constants::eps<T>){
-		if((!flag)||q.i<0){
-			flag=1;
-		}else{
-			o<<"+";
-		}
-		if(std::abs(q.i-1)<Constants::eps<T>){
-			o<<"i";
-		}else{
-			if(std::abs(q.i+1)<Constants::eps<T>){
-				o<<"-i";
+	if(std::isnan(q.i)){
+		o<<"+nani";
+	}else{
+		if(std::abs(q.i)>Constants::eps<T>){
+			if((!flag)||q.i<T(0)){
+				flag=1;
 			}else{
-				o<<s2<<"i";
+				o<<"+";
+			}
+			if(std::abs(q.i-T(1))<Constants::eps<T>){
+				o<<"i";
+			}else{
+				if(std::abs(q.i+T(1))<Constants::eps<T>){
+					o<<"-i";
+				}else{
+					o<<s2<<"i";
+				}
 			}
 		}
 	}
-	if(std::abs(q.j)>Constants::eps<T>){
-		if((!flag)||q.j<0){
-			flag=1;
-		}else{
-			o<<"+";
-		}
-		if(std::abs(q.j-1)<Constants::eps<T>){
-			o<<"j";
-		}else{
-			if(std::abs(q.j+1)<Constants::eps<T>){
-				o<<"-j";
+	if(std::isnan(q.j)){
+		o<<"+nanj";
+	}else{
+		if(std::abs(q.j)>Constants::eps<T>){
+			if((!flag)||q.j<T(0)){
+				flag=1;
 			}else{
-				o<<s3<<"j";
+				o<<"+";
+			}
+			if(std::abs(q.j-T(1))<Constants::eps<T>){
+				o<<"j";
+			}else{
+				if(std::abs(q.j+T(1))<Constants::eps<T>){
+					o<<"-j";
+				}else{
+					o<<s3<<"j";
+				}
 			}
 		}
 	}
-	if(std::abs(q.k)>Constants::eps<T>){
-		if((!flag)||q.k<0){
-			flag=1;
-		}else{
-			o<<"+";
-		}
-		if(std::abs(q.k-1)<Constants::eps<T>){
-			o<<"k";
-		}else{
-			if(std::abs(q.k+1)<Constants::eps<T>){
-				o<<"-k";
+	if(std::isnan(q.k)){
+		o<<"+nank";
+	}else{
+		if(std::abs(q.k)>Constants::eps<T>){
+			if((!flag)||q.k<T(0)){
+				flag=1;
 			}else{
-				o<<s4<<"k";
+				o<<"+";
+			}
+			if(std::abs(q.k-T(1))<Constants::eps<T>){
+				o<<"k";
+			}else{
+				if(std::abs(q.k+T(1))<Constants::eps<T>){
+					o<<"-k";
+				}else{
+					o<<s4<<"k";
+				}
 			}
 		}
 	}
@@ -986,29 +1163,29 @@ std::ostream &operator <<(std::ostream &o,const Quaternion<T> &q){
 //literals
 #if __cplusplus>201103L
 namespace QLiterals{
-	Quaternion<float> operator""_if(unsigned long long x){
-		return Quaternion<float>(0,(float)x,0,0);
+	MAYBE_CONSTEXPR Quaternion<float> operator""_if(unsigned long long x){
+		return Quaternion<float>(0.0,(float)x,0.0,0.0);
 	}
-	Quaternion<float> operator""_if(long double x){
-		return Quaternion<float>(0,(float)x,0,0);
+	MAYBE_CONSTEXPR Quaternion<float> operator""_if(long double x){
+		return Quaternion<float>(0.0,(float)x,0.0,0.0);
 	}
-	Quaternion<float> operator""_jf(unsigned long long x){
-		return Quaternion<float>(0,0,(float)x,0);
+	MAYBE_CONSTEXPR Quaternion<float> operator""_jf(unsigned long long x){
+		return Quaternion<float>(0.0,0.0,(float)x,0.0);
 	}
-	Quaternion<float> operator""_jf(long double x){
-		return Quaternion<float>(0,0,(float)x,0);
+	MAYBE_CONSTEXPR Quaternion<float> operator""_jf(long double x){
+		return Quaternion<float>(0.0,0.0,(float)x,0.0);
 	}
-	Quaternion<float> operator""_kf(unsigned long long x){
-		return Quaternion<float>(0,0,0,(float)x);
+	MAYBE_CONSTEXPR Quaternion<float> operator""_kf(unsigned long long x){
+		return Quaternion<float>(0.0,0.0,0.0,(float)x);
 	}
-	Quaternion<float> operator""_kf(long double x){
-		return Quaternion<float>(0,0,0,(float)x);
+	MAYBE_CONSTEXPR Quaternion<float> operator""_kf(long double x){
+		return Quaternion<float>(0.0,0.0,0.0,(float)x);
 	}
-	Quaternion<float> operator""_rf(unsigned long long x){
-		return Quaternion<float>((float)x,0,0,0);
+	MAYBE_CONSTEXPR Quaternion<float> operator""_rf(unsigned long long x){
+		return Quaternion<float>((float)x,0.0,0.0,0.0);
 	}
-	Quaternion<float> operator""_rf(long double x){
-		return Quaternion<float>((float)x,0,0,0);
+	MAYBE_CONSTEXPR Quaternion<float> operator""_rf(long double x){
+		return Quaternion<float>((float)x,0.0,0.0,0.0);
 	}
 	Quaternion<float> operator""_qf(const char* str,size_t len){
 		std::string s(str,len);
@@ -1035,29 +1212,29 @@ namespace QLiterals{
 		Quaternion<float> q=std::cos(theta/2)+u*std::sin(theta/2);
 		return q;
 	}
-	Quaternion<double> operator""_id(unsigned long long x){
-		return Quaternion<double>(0,(double)x,0,0);
+	MAYBE_CONSTEXPR Quaternion<double> operator""_id(unsigned long long x){
+		return Quaternion<double>(0.0,(double)x,0.0,0.0);
 	}
-	Quaternion<double> operator""_id(long double x){
-		return Quaternion<double>(0,(double)x,0,0);
+	MAYBE_CONSTEXPR Quaternion<double> operator""_id(long double x){
+		return Quaternion<double>(0.0,(double)x,0.0,0.0);
 	}
-	Quaternion<double> operator""_jd(unsigned long long x){
-		return Quaternion<double>(0,0,(double)x,0);
+	MAYBE_CONSTEXPR Quaternion<double> operator""_jd(unsigned long long x){
+		return Quaternion<double>(0.0,0.0,(double)x,0.0);
 	}
-	Quaternion<double> operator""_jd(long double x){
-		return Quaternion<double>(0,0,(double)x,0);
+	MAYBE_CONSTEXPR Quaternion<double> operator""_jd(long double x){
+		return Quaternion<double>(0.0,0.0,(double)x,0.0);
 	}
-	Quaternion<double> operator""_kd(unsigned long long x){
-		return Quaternion<double>(0,0,0,(double)x);
+	MAYBE_CONSTEXPR Quaternion<double> operator""_kd(unsigned long long x){
+		return Quaternion<double>(0.0,0.0,0.0,(double)x);
 	}
-	Quaternion<double> operator""_kd(long double x){
-		return Quaternion<double>(0,0,0,(double)x);
+	MAYBE_CONSTEXPR Quaternion<double> operator""_kd(long double x){
+		return Quaternion<double>(0.0,0.0,0.0,(double)x);
 	}
-	Quaternion<double> operator""_rd(unsigned long long x){
-		return Quaternion<double>((double)x,0,0,0);
+	MAYBE_CONSTEXPR Quaternion<double> operator""_rd(unsigned long long x){
+		return Quaternion<double>((double)x,0.0,0.0,0.0);
 	}
-	Quaternion<double> operator""_rd(long double x){
-		return Quaternion<double>((double)x,0,0,0);
+	MAYBE_CONSTEXPR Quaternion<double> operator""_rd(long double x){
+		return Quaternion<double>((double)x,0.0,0.0,0.0);
 	}
 	Quaternion<double> operator""_qd(const char* str,size_t len){
 		std::string s(str,len);
@@ -1084,29 +1261,29 @@ namespace QLiterals{
 		Quaternion<double> q=std::cos(theta/2)+u*std::sin(theta/2);
 		return q;
 	}
-	Quaternion<long double> operator""_ild(unsigned long long x){
-		return Quaternion<long double>(0,(long double)x,0,0);
+	MAYBE_CONSTEXPR Quaternion<long double> operator""_ild(unsigned long long x){
+		return Quaternion<long double>(0.0,(long double)x,0.0,0.0);
 	}
-	Quaternion<long double> operator""_ild(long double x){
-		return Quaternion<long double>(0,(long double)x,0,0);
+	MAYBE_CONSTEXPR Quaternion<long double> operator""_ild(long double x){
+		return Quaternion<long double>(0.0,(long double)x,0.0,0.0);
 	}
-	Quaternion<long double> operator""_jld(unsigned long long x){
-		return Quaternion<long double>(0,0,(long double)x,0);
+	MAYBE_CONSTEXPR Quaternion<long double> operator""_jld(unsigned long long x){
+		return Quaternion<long double>(0.0,0.0,(long double)x,0.0);
 	}
-	Quaternion<long double> operator""_jld(long double x){
-		return Quaternion<long double>(0,0,(long double)x,0);
+	MAYBE_CONSTEXPR Quaternion<long double> operator""_jld(long double x){
+		return Quaternion<long double>(0.0,0.0,(long double)x,0.0);
 	}
-	Quaternion<long double> operator""_kld(unsigned long long x){
-		return Quaternion<long double>(0,0,0,(long double)x);
+	MAYBE_CONSTEXPR Quaternion<long double> operator""_kld(unsigned long long x){
+		return Quaternion<long double>(0.0,0.0,0.0,(long double)x);
 	}
-	Quaternion<long double> operator""_kld(long double x){
-		return Quaternion<long double>(0,0,0,(long double)x);
+	MAYBE_CONSTEXPR Quaternion<long double> operator""_kld(long double x){
+		return Quaternion<long double>(0.0,0.0,0.0,(long double)x);
 	}
-	Quaternion<long double> operator""_rld(unsigned long long x){
-		return Quaternion<long double>((long double)x,0,0,0);
+	MAYBE_CONSTEXPR Quaternion<long double> operator""_rld(unsigned long long x){
+		return Quaternion<long double>((long double)x,0.0,0.0,0.0);
 	}
-	Quaternion<long double> operator""_rld(long double x){
-		return Quaternion<long double>((long double)x,0,0,0);
+	MAYBE_CONSTEXPR Quaternion<long double> operator""_rld(long double x){
+		return Quaternion<long double>((long double)x,0.0,0.0,0.0);
 	}
 	Quaternion<long double> operator""_qld(const char* str,size_t len){
 		std::string s(str,len);
