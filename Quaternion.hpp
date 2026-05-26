@@ -5,6 +5,7 @@ This library provides quaternion basic operations,transcendental functions and l
 */
 #ifndef QUATERNION_HPP
 #define QUATERNION_HPP
+#include <ios>
 #include <cmath>
 #include <iostream>
 #include <string>
@@ -49,15 +50,6 @@ namespace Constants{
 	template<typename T>
 	inline constexpr T eps=T(1e-10);
 }
-std::string TrimTrailingZeros(std::string a){
-	if(a.empty()){
-		return a;
-	}
-        while(a[a.size()-1]=='0'){
-            a.erase(a.size()-1,1);
-        }
-    return a;
-}
 template <typename T>
 T stot(const std::string &s){
 	static_assert(std::is_same<T,float>::value||std::is_same<T,double>::value||std::is_same<T,long double>::value,"T must be 'float','double' or 'long double',not 'int'");
@@ -72,36 +64,36 @@ T stot(const std::string &s){
 	}
 }
 template <typename T>
-struct Quaternion{
+struct alignas(16) Quaternion{
 	static_assert(std::is_same<T,float>::value||std::is_same<T,double>::value||std::is_same<T,long double>::value,"T must be 'float','double' or 'long double',not 'int'");
 	T r,i,j,k;
-	T& w=r;
-	T& x=i;
-	T& y=j;
-	T& z=k;
+	constexpr T w()const noexcept{return r;}
+	constexpr T x()const noexcept{return i;}
+	constexpr T y()const noexcept{return j;}
+	constexpr T z()const noexcept{return k;}
 	constexpr Quaternion conj()const{
 		return Quaternion(r,-i,-j,-k);
 	}
 	//getters and setters
-	constexpr T real()const{
+	constexpr T real()const noexcept{
 		return r;
 	}
 	void real(T val){
 		r=val;
 	}
-	constexpr T imagi()const{
+	constexpr T imagi()const noexcept{
 		return i;
 	}
 	void imagi(T val){
 		i=val;
 	}
-	constexpr T imagj()const{
+	constexpr T imagj()const noexcept{
 		return j;
 	}
 	void imagj(T val){
 		j=val;
 	}
-	constexpr T imagk()const{
+	constexpr T imagk()const noexcept{
 		return k;
 	}
 	void imagk(T val){
@@ -291,7 +283,7 @@ struct Quaternion{
 		XYZ,XZY,YXZ,YZX,ZXY,ZYX
 	};
 	//quaternion->(roll,pitch,yaw)
-	MAYBE_CONSTEXPR std::array<T,3> ToEulerAngles(EulerOrder order=EulerOrder::XYZ,T epss=Constants::eps<T>)const{
+	MAYBE_CONSTEXPR std::array<T,3> ToEulerAngles(EulerOrder order=EulerOrder::XYZ,T epss=T(1)-Constants::eps<T>)const{
 		Quaternion q=this->normalized();
 		T w=q.r,x=q.i,y=q.j,z=q.k;
 		T roll,pitch,yaw;
@@ -467,18 +459,6 @@ struct Quaternion{
 };
 //tuple
 namespace std{
-	template<std::size_t N,typename T>
-	decltype(auto) get(const Quaternion<T> &q){
-		return q.template get<N>();
-	}
-	template<std::size_t N,typename T>
-	decltype(auto) get(Quaternion<T> &q){
-		return q.template get<N>();
-	}
-	template<std::size_t N,typename T>
-	decltype(auto) get(Quaternion<T>&& q){
-		return std::forward<Quaternion<T> >(q).template get<N>();
-	}
 	template<typename T>
 	struct tuple_size<Quaternion<T> >:std::integral_constant<size_t,4>{};
 	template<typename T>
@@ -757,7 +737,7 @@ MAYBE_CONSTEXPR Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &
 		d=-d;
 		sign=-T(1);
 	}
-	const T dt=eeps;
+	const T dt=T(1)-eeps;
 	if(d>dt){
 		Quaternion<T> q=a+(b*sign-a)*t;
 		return q.normalized();
@@ -951,6 +931,27 @@ std::string to_string(Quaternion<T> q){
 	ss<<q;
 	return ss.str();
 }
+enum class OutMode{
+	Alg,
+	Tup,
+	Ang
+};
+inline int format_storage_index(){
+	static int idx=std::ios_base::xalloc();
+	return idx;
+}
+inline std::ios_base& quat_algebraic(std::ios_base &io){
+	io.iword(format_storage_index())=static_cast<long>(OutMode::Alg);
+	return io;
+}
+inline std::ios_base& quat_tuple(std::ios_base &io){
+	io.iword(format_storage_index())=static_cast<long>(OutMode::Tup);
+	return io;
+}
+inline std::ios_base& quat_axisangle(std::ios_base &io){
+	io.iword(format_storage_index())=static_cast<long>(OutMode::Ang);
+	return io;
+}
 //a+bi+cj+dk or (a,b,c)<d
 template<typename T>
 std::istream &operator >>(std::istream &in,Quaternion<T> &q){
@@ -973,7 +974,17 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		q=Quaternion<T>();
 		return in;
 	}
-	if(s.find("<")!=-1){
+	std::string t="1234567890.()<ijk+-eE,";
+	for(int i=0;i<s.size();i++){
+		if(t.find(s[i])==t.npos){
+			throw std::invalid_argument("There are illegal characters in the input");
+		}
+	}
+	if(std::count(s.begin(),s.end(),'<')==1&&s.find("<")==s.find(")")+1&&s.find(")")!=-1&&(s.find("i")==-1&&s.find("j")==-1&&s.find("k")==-1)){
+		if(s.find("(")!=0){
+			s.erase(s.find("("),1);
+			s.insert(0,"(");
+		}
 		std::string s1=s.substr(0,s.find("<"));
 		std::string s2=s.substr(s.find("<")+1,s.size()-s.find("<")-1);
 		s1.erase(0,1);
@@ -986,6 +997,9 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		T theta=stot<T>(s2);
 		q=std::cos(theta/2)+u*std::sin(theta/2);
 		return in;
+	}
+	while(s.find("<")!=-1){
+		s.erase(s.find("<"),1);
 	}
 	if(s[0]!='+'&&s[0]!='-'){
 		s='+'+s;
@@ -1013,6 +1027,49 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		q=Quaternion<T>();
 		return in;
 	}
+	w=s.find("ee"),x=s.find("eE"),y=s.find("Ee"),z=s.find("EE");
+	while(w!=std::string::npos||x!=std::string::npos||y!=std::string::npos||z!=std::string::npos){
+		if(w!=std::string::npos){
+			s.erase(w,1);
+		}
+		if(x!=std::string::npos){
+			s.erase(x,1);
+		}
+		if(y!=std::string::npos){
+			s.erase(y,1);
+		}
+		if(z!=std::string::npos){
+			s.erase(z,1);
+		}
+		w=s.find("ee"),x=s.find("eE"),y=s.find("Ee"),z=s.find("EE");
+	}
+	while(s.find("..")!=s.npos){
+		s.erase(s.find(".."),1);
+	}
+	for(int i=0;i<s.size();i++){
+		if(s[i]=='e'&&!isdigit(s[i-1])){
+			s.insert(i,"0");
+		}
+		if(s[i]=='e'&&!isdigit(s[i+1])){
+			s.insert(i+1,"0");
+		}
+	}
+	for(int i=0;i<s.size();i++){
+		if(s[i]=='.'&&!isdigit(s[i-1])){
+			s.insert(i,"0");
+		}
+		if(s[i]=='.'&&!isdigit(s[i+1])){
+			s.insert(i+1,"0");
+		}
+	}
+	for(int i=0;i<s.size();i++){
+		if(s[i]=='E'&&!isdigit(s[i-1])){
+			s.insert(i,"0");
+		}
+		if(s[i]=='E'&&!isdigit(s[i+1])){
+			s.insert(i+1,"0");
+		}
+	}
 	std::vector<std::string>v;
 	int start=0;
 	for(int i=1;i<s.size();i++){
@@ -1034,6 +1091,8 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 			try{
 				val=nn.empty()?T(1):stot<T>(nn);
 			}catch(const std::exception& e){
+				in.setstate(std::ios::failbit);
+				in.clear();
 				q=Quaternion<T>();
 				throw std::invalid_argument("There are illegal characters in the input");
 			}
@@ -1045,6 +1104,8 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 				try{
 					val=nn.empty()?T(1):stot<T>(nn);
 				}catch(const std::exception& e){
+					in.setstate(std::ios::failbit);
+					in.clear();
 					q=Quaternion<T>();
 					throw std::invalid_argument("There are illegal characters in the input");
 				}
@@ -1056,6 +1117,8 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 					try{
 						val=nn.empty()?T(1):stot<T>(nn);
 					}catch(const std::exception& e){
+						in.setstate(std::ios::failbit);
+						in.clear();
 						q=Quaternion<T>();
 						throw std::invalid_argument("There are illegal characters in the input");
 					}
@@ -1072,91 +1135,89 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 //a+bi+cj+dk
 template<typename T>
 std::ostream &operator <<(std::ostream &o,const Quaternion<T> &q){
-	std::string s1=std::to_string(q.r),s2=std::to_string(q.i),s3=std::to_string(q.j),s4=std::to_string(q.k);
-	s1=TrimTrailingZeros(s1);
-	s2=TrimTrailingZeros(s2);
-	s3=TrimTrailingZeros(s3);
-	s4=TrimTrailingZeros(s4);
 	bool flag=0;
-	if(s1.find(".")==s1.size()-1){
-		s1.erase(s1.size()-1,1);
-	}
-	if(s2.find(".")==s2.size()-1){
-		s2.erase(s2.size()-1,1);
-	}
-	if(s3.find(".")==s3.size()-1){
-		s3.erase(s3.size()-1,1);
-	}
-	if(s4.find(".")==s4.size()-1){
-		s4.erase(s4.size()-1,1);
-	}
-	if(std::abs(q.r)<Constants::eps<T>&&std::abs(q.i)<Constants::eps<T>&&std::abs(q.j)<Constants::eps<T>&&std::abs(q.k)<Constants::eps<T>){
-		o<<"0";
-		return o;
-	}
-	if(std::abs(q.r)>Constants::eps<T>){
-		o<<s1;
-		flag=1;
-	}
-	if(std::isnan(q.i)){
-		o<<"+nani";
-	}else{
-		if(std::abs(q.i)>Constants::eps<T>){
-			if((!flag)||q.i<T(0)){
-				flag=1;
-			}else{
-				o<<"+";
+	auto mode=static_cast<OutMode>(o.iword(format_storage_index()));
+	switch(mode){
+		case OutMode::Tup:
+			o<<'('<<q.r<<','<<q.i<<','<<q.j<<','<<q.k<<')';
+			break;
+		case OutMode::Ang:
+			if(std::abs(q.r)-1.0<=Constants::eps<T>){
+				T theta=std::acos(q.r)*2;
+				Quaternion<T> a=pure(q)/std::sin(theta/2.0);
+				o<<'('<<a.i<<','<<a.j<<','<<a.k<<')'<<'<'<<theta;
 			}
-			if(std::abs(q.i-T(1))<Constants::eps<T>){
-				o<<"i";
+			break;
+		case OutMode::Alg:default:
+			if(iszero(q)){
+				o<<"0";
 			}else{
-				if(std::abs(q.i+T(1))<Constants::eps<T>){
-					o<<"-i";
+				if(std::abs(q.r)>Constants::eps<T>){
+					o<<q.r;
+					flag=1;
+				}
+				if(std::isnan(q.i)){
+					o<<"+nani";
 				}else{
-					o<<s2<<"i";
+					if(std::abs(q.i)>Constants::eps<T>){
+						if((!flag)||q.i<T(0)){
+							flag=1;
+						}else{
+							o<<"+";
+						}
+						if(std::abs(q.i-T(1))<Constants::eps<T>){
+							o<<"i";
+						}else{
+							if(std::abs(q.i+T(1))<Constants::eps<T>){
+								o<<"-i";
+							}else{
+								o<<q.i<<"i";
+							}
+						}
+					}
+				}
+				if(std::isnan(q.j)){
+					o<<"+nanj";
+				}else{
+					if(std::abs(q.j)>Constants::eps<T>){
+						if((!flag)||q.j<T(0)){
+							flag=1;
+						}else{
+							o<<"+";
+						}
+						if(std::abs(q.j-T(1))<Constants::eps<T>){
+							o<<"j";
+						}else{
+							if(std::abs(q.j+T(1))<Constants::eps<T>){
+								o<<"-j";
+							}else{
+								o<<q.j<<"j";
+							}
+						}
+					}
+				}
+				if(std::isnan(q.k)){
+					o<<"+nank";
+				}else{
+					if(std::abs(q.k)>Constants::eps<T>){
+						if((!flag)||q.k<T(0)){
+							flag=1;
+						}else{
+							o<<"+";
+						}
+						if(std::abs(q.k-T(1))<Constants::eps<T>){
+							o<<"k";
+						}else{
+							if(std::abs(q.k+T(1))<Constants::eps<T>){
+								o<<"-k";
+							}else{
+								o<<q.k<<"k";
+							}
+						}
+					}
 				}
 			}
-		}
-	}
-	if(std::isnan(q.j)){
-		o<<"+nanj";
-	}else{
-		if(std::abs(q.j)>Constants::eps<T>){
-			if((!flag)||q.j<T(0)){
-				flag=1;
-			}else{
-				o<<"+";
-			}
-			if(std::abs(q.j-T(1))<Constants::eps<T>){
-				o<<"j";
-			}else{
-				if(std::abs(q.j+T(1))<Constants::eps<T>){
-					o<<"-j";
-				}else{
-					o<<s3<<"j";
-				}
-			}
-		}
-	}
-	if(std::isnan(q.k)){
-		o<<"+nank";
-	}else{
-		if(std::abs(q.k)>Constants::eps<T>){
-			if((!flag)||q.k<T(0)){
-				flag=1;
-			}else{
-				o<<"+";
-			}
-			if(std::abs(q.k-T(1))<Constants::eps<T>){
-				o<<"k";
-			}else{
-				if(std::abs(q.k+T(1))<Constants::eps<T>){
-					o<<"-k";
-				}else{
-					o<<s4<<"k";
-				}
-			}
-		}
+			break;
 	}
 	return o;
 }
