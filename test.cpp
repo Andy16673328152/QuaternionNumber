@@ -2,7 +2,6 @@
 #include <cassert>
 #include "Quaternion.hpp"
 using namespace std;
-using namespace QLiterals;
 int main(){
     //1. String parsing test
     auto q=stoq<double>(1+2i+3j+4k);
