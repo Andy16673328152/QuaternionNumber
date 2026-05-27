@@ -365,55 +365,44 @@ struct alignas(16) Quaternion{
 		T s2=std::sin(pitch/2);
 		T c3=std::cos(yaw/2);
 		T s3=std::sin(yaw/2);
+		Quaternion q;
 		switch(order){
 			case EulerOrder::XYZ:
-				Quaternion q(
-					c1*c2*c3-s1*s2*s3,
-					s1*c2*c3+c1*s2*s3,
-					c1*s2*c3-s1*c2*s3,
-					c1*c2*s3+s1*s2*c3
-				);
+				q.r=c1*c2*c3-s1*s2*s3;
+				q.i=s1*c2*c3+c1*s2*s3;
+				q.j=c1*s2*c3-s1*c2*s3;
+				q.k=c1*c2*s3+s1*s2*c3;
 				return q.normalized();
 			case EulerOrder::XZY:
-				Quaternion q1(
-					c1*c2*c3+s1*s2*s3,
-					s1*c2*c3-c1*s2*s3,
-					c1*c2*s3-s1*s2*c3,
-					c1*s2*c3+s1*c2*s3
-				);
-				return q1.normalized();
+				q.r=c1*c2*c3+s1*s2*s3;
+				q.i=s1*c2*c3-c1*s2*s3;
+				q.j=c1*c2*s3-s1*s2*c3;
+				q.k=c1*s2*c3+s1*c2*s3;
+				return q.normalized();
 			case EulerOrder::YXZ:
-				Quaternion q2(
-					c1*c2*c3+s1*s2*s3,
-					s1*c2*c3+c1*s2*s3,
-					c1*s2*c3-s1*c2*s3,
-					c1*c2*s3-s1*s2*c3
-				);
-				return q2.normalized();
+				q.r=c1*c2*c3+s1*s2*s3;
+				q.i=s1*c2*c3+c1*s2*s3;
+				q.j=c1*s2*c3-s1*c2*s3;
+				q.k=c1*c2*s3-s1*s2*c3;
+				return q.normalized();
 			case EulerOrder::YZX:
-				Quaternion q3(
-					c1*c2*c3-s1*s2*s3,
-					c1*s2*c3+s1*c2*s3,
-					s1*c2*c3+c1*s2*s3,
-					c1*c2*s3-s1*s2*c3
-				);
-				return q3.normalized();
+				q.r=c1*c2*c3-s1*s2*s3;
+				q.i=c1*s2*c3+s1*c2*s3;
+				q.j=s1*c2*c3+c1*s2*s3;
+				q.k=c1*c2*s3-s1*s2*c3;
+				return q.normalized();
 			case EulerOrder::ZXY:
-				Quaternion q4(
-					c1*c2*c3-s1*s2*s3,
-					c1*s2*c3-s1*c2*s3,
-					c1*c2*s3+s1*s2*c3,
-					s1*c2*c3+c1*s2*s3
-				);
-				return q4.normalized();
+				q.r=c1*c2*c3-s1*s2*s3;
+				q.i=c1*s2*c3-s1*c2*s3;
+				q.j=c1*c2*s3+s1*s2*c3;
+				q.k=s1*c2*c3+c1*s2*s3;
+				return q.normalized();
 			case EulerOrder::ZYX:
-				Quaternion q5(
-					c1*c2*c3+s1*s2*s3,
-					c1*c2*s3-s1*s2*c3,
-					c1*s2*c3+s1*c2*s3,
-					s1*c2*c3-c1*s2*s3
-				);
-				return q5.normalized();
+				q.r=c1*c2*c3+s1*s2*s3;
+				q.i=c1*c2*s3-s1*s2*c3;
+				q.j=c1*s2*c3+s1*c2*s3;
+				q.k=s1*c2*c3-c1*s2*s3;
+				return q.normalized();
 			default:
 				return Quaternion(1,0,0,0);
 		}
