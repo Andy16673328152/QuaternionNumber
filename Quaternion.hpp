@@ -969,7 +969,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		}
 		s.push_back(c);
 	}
-	s.erase(remove_if(s.begin(),s.end(),[](unsigned char c){return std::isspace(c);}),s.end());
+	s.erase(remove_if(s.begin(),s.end(),[](unsigned char c){return std::isspace(c)||c=='\n'||c=='\r';}),s.end());
 	if(s.empty()){
 		q=Quaternion<T>();
 		return in;
@@ -1050,7 +1050,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		if(s[i]=='e'&&!isdigit(s[i-1])){
 			s.insert(i,"0");
 		}
-		if(s[i]=='e'&&!isdigit(s[i+1])){
+		if(s[i]=='e'&&(!isdigit(s[i+1])&&s[i+1]!='-'&&s[i+1]!='+')){
 			s.insert(i+1,"0");
 		}
 	}
@@ -1066,7 +1066,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		if(s[i]=='E'&&!isdigit(s[i-1])){
 			s.insert(i,"0");
 		}
-		if(s[i]=='E'&&!isdigit(s[i+1])){
+		if(s[i]=='E'&&(!isdigit(s[i+1])&&s[i+1]!='-'&&s[i+1]!='+')){
 			s.insert(i+1,"0");
 		}
 	}
@@ -1130,6 +1130,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 			}
 		}
 	}
+	in.clear();
 	return in;
 }
 //a+bi+cj+dk
