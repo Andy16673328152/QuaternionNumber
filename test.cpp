@@ -3,7 +3,7 @@
 #include "Quaternion.hpp"
 int main(){
     //1. String parsing test
-    auto q=stoq<double>(1+2i+3j+4k);
+    auto q=stoq<double>("1+2i+3j+4k");
     assert(q.real()==1.0);
     assert(q.imagi()==2.0);
     assert(q.imagj()==3.0);
