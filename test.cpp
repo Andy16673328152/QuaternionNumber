@@ -1,4 +1,4 @@
-#include <bits/stdc++.h>
+#include <iostream>
 #include <cassert>
 #include "Quaternion.hpp"
 int main(){
