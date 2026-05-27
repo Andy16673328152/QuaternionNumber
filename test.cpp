@@ -10,7 +10,7 @@ int main(){
     assert(q.imagk()==4.0);
     std::cout<<"String parsing test passed\n";
     //2. Rotation test
-    auto rot=Quaternion<double>::FromAxisAngle(1.5708,0,0,1);
+    auto rot=Quaternion<double>::FromAxisAngle(1.570796,0,0,1);
     auto v=rot.RotateVector(1,0,0);
     assert(std::abs(v[0])<1e-6&&std::abs(v[1]-1)<1e-6);
     std::cout<<"Rotation test passed\n";
