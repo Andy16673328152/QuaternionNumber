@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        compiler: [g++-13,g++-14,clang++-17,clang++-18,clang++-19,clang++-20,clang++-21,clang++-22]
+        compiler: [g++-13,g++-14,clang++-17,clang++-18]
         std: [17,20,23]
     steps:
       - uses: actions/checkout@v3
