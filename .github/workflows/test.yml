@@ -1,16 +1,18 @@
 # .github/workflows/test.yml
-name:Test
-on:[push,pull_request]
+name: Test
+
+on: [push,pull_request]
+
 jobs:
   test:
-    runs-on:ubuntu-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        compiler:[g++-11,g++-12,g++-13,g++-14,clang++-14,clang++-15,clang++-16,clang++-17,clang++-18,clang++-19,clang++-20,clang++-21,clang++-22]
-        std::[17,20,23]
+        compiler: [g++-11,g++-12,g++-13,g++-14,clang++-14,clang++-15,clang++-16,clang++-17,clang++-18,clang++-19,clang++-20,clang++-21,clang++-22]
+        std: [17,20,23]
       steps:
-        - uses:actions/checkout@v3
-        - name:Compile test
-          run:${{matrix.compiler}} -std=c++${{matrix.std}} -Wall -Wextra test.cpp -o test
-        - name:Run test
-          run:./test
+        - uses: actions/checkout@v3
+        - name: Compile test
+          run: ${{matrix.compiler}} -std=c++${{matrix.std}} -Wall -Wextra test.cpp -o test
+        - name: Run test
+          run: ./test
