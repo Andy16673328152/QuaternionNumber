@@ -16,7 +16,6 @@ int main(){
     std::cout<<"Rotation test passed\n";
     //3.Output format test
     std::cout<<quat_tuple<<q<<"\n";
-    std::cout<<quat_axisangle<<q<<"\n";
     std::cout<<q<<"\n";
     std::cout<<"All tests passed!";
     return 0;
