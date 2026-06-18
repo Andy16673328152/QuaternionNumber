@@ -38,6 +38,12 @@ This library provides quaternion basic operations,transcendental functions and l
 #else
 #define MAYBE_CONSTEXPR inline
 #endif
+#ifdef __SSE__
+#include <xmmintrin.h>
+#endif
+#ifdef __AVX2__
+#include <immintrin.h>
+#endif
 //Constants
 namespace Constants{
 	#if __cplusplus>=202002L
@@ -198,10 +204,48 @@ struct alignas(16) Quaternion{
 		T al=std::sqrt(r*r+i*i+j*j+k*k);
 		if(al>Constants::eps<T>){
 			T ial=T(1)/al;
-			r*=ial;
-			i*=ial;
-			j*=ial;
-			k*=ial;
+			if constexpr(std::is_same<T,float>::value){
+				#ifdef __SSE__
+				__m128 vq=_mm_load_ps(&(this->r));
+				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+				__m128 rr=_mm_mul_ps(vq,fourxial);
+				float rt[4];
+				_mm_store_ps(rt,rr);
+				r=rt[0];
+				i=rt[1];
+				j=rt[2];
+				k=rt[3];
+				#else
+				r*=ial;
+				i*=ial;
+				j*=ial;
+				k*=ial;
+				#endif
+			}else{
+				if constexpr(std::is_same<T,double>::value){
+					#ifdef __AVX2__
+					__m256d vq=_mm256_load_pd(&(this->r));
+					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+					__m256d rr=_mm256_mul_pd(vq,fourxial);
+					double rt[4];
+					_mm256_store_pd(rt,rr);
+					r=rt[0];
+					i=rt[1];
+					j=rt[2];
+					k=rt[3];
+					#else
+					r*=ial;
+					i*=ial;
+					j*=ial;
+					k*=ial;
+					#endif
+				}else{
+					r*=ial;
+					i*=ial;
+					j*=ial;
+					k*=ial;	
+				}
+			}
 		}
 		return *this;
 	}
@@ -209,7 +253,33 @@ struct alignas(16) Quaternion{
 		T al=std::sqrt(r*r+i*i+j*j+k*k);
 		if(al>Constants::eps<T>){
 			T ial=T(1)/al;
-			return Quaternion(r*ial,i*ial,j*ial,k*ial);
+			if constexpr(std::is_same<T,float>::value){
+				#ifdef __SSE__
+				__m128 vq=_mm_load_ps(&(this->r));
+				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+				__m128 rr=_mm_mul_ps(vq,fourxial);
+				float rt[4];
+				_mm_store_ps(rt,rr);
+				return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				#else
+				return Quaternion(r*ial,i*ial,j*ial,k*ial);
+				#endif
+			}else{
+				if constexpr(std::is_same<T,double>::value){
+					#ifdef __AVX2__
+					__m256d vq=_mm256_load_pd(&(this->r));
+					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+					__m256d rr=_mm256_mul_pd(vq,fourxial);
+					double rt[4];
+					_mm256_store_pd(rt,rr);
+					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					#else
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);
+					#endif
+				}else{
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);	
+				}
+			}
 		}
 		return *this;
 	}
@@ -217,7 +287,33 @@ struct alignas(16) Quaternion{
 		T al=std::sqrt(norm);
 		if(al>Constants::eps<T>){
 			T ial=T(1)/al;
-			return Quaternion(r*ial,i*ial,j*ial,k*ial);
+			if constexpr(std::is_same<T,float>::value){
+				#ifdef __SSE__
+				__m128 vq=_mm_load_ps(&(this->r));
+				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+				__m128 r=_mm_mul_ps(vq,fourxial);
+				float rt[4];
+				_mm_store_ps(rt,r);
+				return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				#else
+				return Quaternion(r*ial,i*ial,j*ial,k*ial);
+				#endif
+			}else{
+				if constexpr(std::is_same<T,double>::value){
+					#ifdef __AVX2__
+					__m256d vq=_mm256_load_pd(&(this->r));
+					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+					__m256d r=_mm256_mul_pd(vq,fourxial);
+					double rt[4];
+					_mm256_store_pd(rt,r);
+					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					#else
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);
+					#endif
+				}else{
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);	
+				}
+			}
 		}
 		return *this;
 	}
@@ -420,7 +516,7 @@ struct alignas(16) Quaternion{
 			return {1,0,0};
 		}
 		T cr=std::max(T(-1),std::min(T(1),r));
-		T a=std::sqrt(1-cr*cr);
+		T a=std::sqrt(T(1)-cr*cr);
 		if(a<Constants::eps<T>||std::isnan(a)){
 			return {1,0,0};
 		}
@@ -433,10 +529,10 @@ struct alignas(16) Quaternion{
 			return T(0);
 		}
 		T cr=std::max(T(-1),std::min(T(1),r));
-		return 2.0*std::acos(cr);
+		return T(2)*std::acos(cr);
 	}
 	MAYBE_CONSTEXPR T angleDegrees()const{
-		return angle()*180/Constants::PI<T>;
+		return angle()*T(180)/Constants::PI<T>;
 	}
 	//T(1)/(*this)
 	MAYBE_CONSTEXPR Quaternion inverse()const{
@@ -558,15 +654,111 @@ MAYBE_CONSTEXPR Quaternion<T> operator /(T a,const Quaternion<T> &b){
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> operator +(const Quaternion<T> &a,const Quaternion<T> &b){
+	if constexpr(std::is_same<T,float>::value){
+	#ifdef __SSE__
+	__m128 va=_mm_load_ps(&a.r);
+	__m128 vb=_mm_load_ps(&b.r);
+	__m128 r=_mm_add_ps(va,vb);
+	float rs[4];
+	_mm_store_ps(rs,r);
+	return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+	#else
 	return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
+	#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			__m256d va=_mm256_load_pd(&a.r);
+			__m256d vb=_mm256_load_pd(&b.r);
+			__m256d r=_mm256_add_pd(va,vb);
+			double rs[4];
+			_mm256_store_pd(rs,r);
+			return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			#else
+			return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
+			#endif
+		}else{
+			return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> operator -(const Quaternion<T> &a,const Quaternion<T> &b){
+	if constexpr(std::is_same<T,float>::value){
+	#ifdef __SSE__
+	__m128 va=_mm_load_ps(&a.r);
+	__m128 vb=_mm_load_ps(&b.r);
+	__m128 r=_mm_sub_ps(va,vb);
+	float rs[4];
+	_mm_store_ps(rs,r);
+	return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+	#else
 	return Quaternion<T>(a.r-b.r,a.i-b.i,a.j-b.j,a.k-b.k);
+	#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			__m256d va=_mm256_load_pd(&a.r);
+			__m256d vb=_mm256_load_pd(&b.r);
+			__m256d r=_mm256_sub_pd(va,vb);
+			double rs[4];
+			_mm256_store_pd(rs,r);
+			return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			#else
+			return Quaternion<T>(a.r-b.r,a.i-b.i,a.j-b.j,a.k-b.k);
+			#endif
+		}else{
+			return Quaternion<T>(a.r-b.r,a.i-b.i,a.j-b.j,a.k-b.k);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> operator *(Quaternion<T> a,Quaternion<T> b){
-	return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
+	if constexpr(std::is_same<T,float>::value){
+		#ifdef __SSE__
+		__m128 va=_mm_load_ps(&a.r);
+		__m128 vb=_mm_load_ps(&b.r);
+		float tp[4];
+		_mm_store_ps(tp,vb);
+		__m128 a0=_mm_shuffle_ps(va,va,_MM_SHUFFLE(0,0,0,0));
+		__m128 a1=_mm_shuffle_ps(va,va,_MM_SHUFFLE(1,1,1,1));
+		__m128 a2=_mm_shuffle_ps(va,va,_MM_SHUFFLE(2,2,2,2));
+		__m128 a3=_mm_shuffle_ps(va,va,_MM_SHUFFLE(3,3,3,3));
+		__m128 r=_mm_mul_ps(a0,_mm_set_ps(tp[3],tp[2],tp[1],tp[0]));
+		r=_mm_add_ps(r,_mm_mul_ps(a1,_mm_set_ps(tp[2],-tp[3],tp[0],-tp[1])));
+		r=_mm_add_ps(r,_mm_mul_ps(a2,_mm_set_ps(-tp[1],tp[0],tp[3],-tp[2])));
+		r=_mm_add_ps(r,_mm_mul_ps(a3,_mm_set_ps(tp[0],tp[1],-tp[2],-tp[3])));
+		float rs[4];
+		_mm_store_ps(rs,r);
+		return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+		#else
+		return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
+		#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			__m256d va=_mm256_load_pd(&a.r);
+			__m256d vb=_mm256_load_pd(&b.r);
+			double tp[4];
+			_mm256_store_pd(tp,vb);
+			__m256d a0=_mm256_permute4x64_pd(va,_MM_SHUFFLE(0,0,0,0));
+			__m256d a1=_mm256_permute4x64_pd(va,_MM_SHUFFLE(1,1,1,1));
+			__m256d a2=_mm256_permute4x64_pd(va,_MM_SHUFFLE(2,2,2,2));
+			__m256d a3=_mm256_permute4x64_pd(va,_MM_SHUFFLE(3,3,3,3));
+			__m256d r=_mm256_mul_pd(a0,vb);
+			r=_mm256_add_pd(r,_mm256_mul_pd(a1,_mm256_set_pd(tp[2],-tp[3],tp[0],-tp[1])));
+			r=_mm256_add_pd(r,_mm256_mul_pd(a2,_mm256_set_pd(-tp[1],tp[0],tp[3],-tp[2])));
+			r=_mm256_add_pd(r,_mm256_mul_pd(a3,_mm256_set_pd(tp[0],tp[1],-tp[2],-tp[3])));
+			double rs[4];
+			_mm256_store_pd(rs,r);
+			return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			#else
+			return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
+			#endif
+		}else{
+			return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR std::array<T,3> operator *(const Quaternion<T> &a,std::array<T,3> v){
@@ -1132,9 +1324,9 @@ std::ostream &operator <<(std::ostream &o,const Quaternion<T> &q){
 			o<<'('<<q.r<<','<<q.i<<','<<q.j<<','<<q.k<<')';
 			break;
 		case OutMode::Ang:
-			if(std::abs(q.r)-1.0<=Constants::eps<T>){
+			if(std::abs(q.r)-T(1)<=Constants::eps<T>){
 				T theta=std::acos(q.r)*2;
-				Quaternion<T> a=pure(q)/std::sin(theta/2.0);
+				Quaternion<T> a=pure(q)/std::sin(theta/T(2));
 				o<<'('<<a.i<<','<<a.j<<','<<a.k<<')'<<'<'<<theta;
 			}
 			break;
@@ -1215,28 +1407,28 @@ std::ostream &operator <<(std::ostream &o,const Quaternion<T> &q){
 #if __cplusplus>201103L
 namespace QLiterals{
 	MAYBE_CONSTEXPR Quaternion<float> operator""_if(unsigned long long x){
-		return Quaternion<float>(0.0,(float)x,0.0,0.0);
+		return Quaternion<float>((float)(0),(float)x,(float)(0),(float)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<float> operator""_if(long double x){
-		return Quaternion<float>(0.0,(float)x,0.0,0.0);
+		return Quaternion<float>((float)(0),(float)x,(float)(0),(float)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<float> operator""_jf(unsigned long long x){
-		return Quaternion<float>(0.0,0.0,(float)x,0.0);
+		return Quaternion<float>((float)(0),(float)(0),(float)x,(float)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<float> operator""_jf(long double x){
-		return Quaternion<float>(0.0,0.0,(float)x,0.0);
+		return Quaternion<float>((float)(0),(float)(0),(float)x,(float)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<float> operator""_kf(unsigned long long x){
-		return Quaternion<float>(0.0,0.0,0.0,(float)x);
+		return Quaternion<float>((float)(0),(float)(0),(float)(0),(float)x);
 	}
 	MAYBE_CONSTEXPR Quaternion<float> operator""_kf(long double x){
-		return Quaternion<float>(0.0,0.0,0.0,(float)x);
+		return Quaternion<float>((float)(0),(float)(0),(float)(0),(float)x);
 	}
 	MAYBE_CONSTEXPR Quaternion<float> operator""_rf(unsigned long long x){
-		return Quaternion<float>((float)x,0.0,0.0,0.0);
+		return Quaternion<float>((float)x,(float)(0),(float)(0),(float)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<float> operator""_rf(long double x){
-		return Quaternion<float>((float)x,0.0,0.0,0.0);
+		return Quaternion<float>((float)x,(float)(0),(float)(0),(float)(0));
 	}
 	Quaternion<float> operator""_qf(const char* str,size_t len){
 		std::string s(str,len);
@@ -1258,34 +1450,34 @@ namespace QLiterals{
 		s1.erase(0,s3.size()+1);
 		std::string s4=s1.substr(0,s1.find(","));
 		s1.erase(0,s4.size()+1);
-		Quaternion<float> u(0.0,std::stof(s3),std::stof(s4),std::stof(s1));
+		Quaternion<float> u((float)(0),std::stof(s3),std::stof(s4),std::stof(s1));
 		float theta=std::stof(s2);
 		Quaternion<float> q=std::cos(theta/2)+u*std::sin(theta/2);
 		return q;
 	}
 	MAYBE_CONSTEXPR Quaternion<double> operator""_id(unsigned long long x){
-		return Quaternion<double>(0.0,(double)x,0.0,0.0);
+		return Quaternion<double>((double)(0),(double)x,(double)(0),(double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<double> operator""_id(long double x){
-		return Quaternion<double>(0.0,(double)x,0.0,0.0);
+		return Quaternion<double>((double)(0),(double)x,(double)(0),(double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<double> operator""_jd(unsigned long long x){
-		return Quaternion<double>(0.0,0.0,(double)x,0.0);
+		return Quaternion<double>((double)(0),(double)(0),(double)x,(double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<double> operator""_jd(long double x){
-		return Quaternion<double>(0.0,0.0,(double)x,0.0);
+		return Quaternion<double>((double)(0),(double)(0),(double)x,(double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<double> operator""_kd(unsigned long long x){
-		return Quaternion<double>(0.0,0.0,0.0,(double)x);
+		return Quaternion<double>((double)(0),(double)(0),(double)(0),(double)x);
 	}
 	MAYBE_CONSTEXPR Quaternion<double> operator""_kd(long double x){
-		return Quaternion<double>(0.0,0.0,0.0,(double)x);
+		return Quaternion<double>((double)(0),(double)(0),(double)(0),(double)x);
 	}
 	MAYBE_CONSTEXPR Quaternion<double> operator""_rd(unsigned long long x){
-		return Quaternion<double>((double)x,0.0,0.0,0.0);
+		return Quaternion<double>((double)x,(double)(0),(double)(0),(double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<double> operator""_rd(long double x){
-		return Quaternion<double>((double)x,0.0,0.0,0.0);
+		return Quaternion<double>((double)x,(double)(0),(double)(0),(double)(0));
 	}
 	Quaternion<double> operator""_qd(const char* str,size_t len){
 		std::string s(str,len);
@@ -1307,34 +1499,34 @@ namespace QLiterals{
 		s1.erase(0,s3.size()+1);
 		std::string s4=s1.substr(0,s1.find(","));
 		s1.erase(0,s4.size()+1);
-		Quaternion<double> u(0.0,std::stod(s3),std::stod(s4),std::stod(s1));
+		Quaternion<double> u((double)(0),std::stod(s3),std::stod(s4),std::stod(s1));
 		double theta=std::stod(s2);
 		Quaternion<double> q=std::cos(theta/2)+u*std::sin(theta/2);
 		return q;
 	}
 	MAYBE_CONSTEXPR Quaternion<long double> operator""_ild(unsigned long long x){
-		return Quaternion<long double>(0.0,(long double)x,0.0,0.0);
+		return Quaternion<long double>((long double)(0),(long double)x,(long double)(0),(long double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<long double> operator""_ild(long double x){
-		return Quaternion<long double>(0.0,(long double)x,0.0,0.0);
+		return Quaternion<long double>((long double)(0),(long double)x,(long double)(0),(long double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<long double> operator""_jld(unsigned long long x){
-		return Quaternion<long double>(0.0,0.0,(long double)x,0.0);
+		return Quaternion<long double>((long double)(0),(long double)(0),(long double)x,(long double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<long double> operator""_jld(long double x){
-		return Quaternion<long double>(0.0,0.0,(long double)x,0.0);
+		return Quaternion<long double>((long double)(0),(long double)(0),(long double)x,(long double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<long double> operator""_kld(unsigned long long x){
-		return Quaternion<long double>(0.0,0.0,0.0,(long double)x);
+		return Quaternion<long double>((long double)(0),(long double)(0),(long double)(0),(long double)x);
 	}
 	MAYBE_CONSTEXPR Quaternion<long double> operator""_kld(long double x){
-		return Quaternion<long double>(0.0,0.0,0.0,(long double)x);
+		return Quaternion<long double>((long double)(0),(long double)(0),(long double)(0),(long double)x);
 	}
 	MAYBE_CONSTEXPR Quaternion<long double> operator""_rld(unsigned long long x){
-		return Quaternion<long double>((long double)x,0.0,0.0,0.0);
+		return Quaternion<long double>((long double)x,(long double)(0),(long double)(0),(long double)(0));
 	}
 	MAYBE_CONSTEXPR Quaternion<long double> operator""_rld(long double x){
-		return Quaternion<long double>((long double)x,0.0,0.0,0.0);
+		return Quaternion<long double>((long double)x,(long double)(0),(long double)(0),(long double)(0));
 	}
 	Quaternion<long double> operator""_qld(const char* str,size_t len){
 		std::string s(str,len);
@@ -1356,7 +1548,7 @@ namespace QLiterals{
 		s1.erase(0,s3.size()+1);
 		std::string s4=s1.substr(0,s1.find(","));
 		s1.erase(0,s4.size()+1);
-		Quaternion<long double> u(0.0,std::stold(s3),std::stold(s4),std::stold(s1));
+		Quaternion<long double> u((long double)(0),std::stold(s3),std::stold(s4),std::stold(s1));
 		long double theta=std::stold(s2);
 		Quaternion<long double> q=std::cos(theta/2)+u*std::sin(theta/2);
 		return q;
