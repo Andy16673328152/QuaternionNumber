@@ -1,7 +1,13 @@
 /*
-Copyright 2026-----aleph_0 Andy16673328152(https://www.luogu.com.cn/user/1476867) All rights reserved.
+Copyright(c) 2026-----aleph_0 Andy16673328152(https://www.luogu.com.cn/user/1476867)
 Quaternion.hpp
 This library provides quaternion basic operations,transcendental functions and literals.
+MIT License:
+Permission is hereby granted, free of charge, to any person obtaining a copy of QuaternionNumber and associated documentation files (Quaternion.hpp), to deal in QuaternionNumber without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of QuaternionNumber, and to permit persons to whom QuaternionNumber is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of QuaternionNumber.
+
+QUATERNIONNUMBER IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH QUATERNIONNUMBER OR THE USE OR OTHER DEALINGS IN QUATERNIONNUMBER.
 */
 #ifndef QUATERNION_HPP
 #define QUATERNION_HPP
@@ -190,6 +196,8 @@ struct alignas(16) Quaternion{
 			return k;
 		}
 	}
+	std::array<T,4> to_array()const{return {r,i,j,k};}
+	std::tuple<T,T,T,T> to_tuple()const{return {r,i,j,k};}
 	static Quaternion identity(){
 		return Quaternion(T(1));
 	}
@@ -317,6 +325,90 @@ struct alignas(16) Quaternion{
 		}
 		return *this;
 	}
+	//orthogonalize
+	Quaternion& orthogonalize(){
+		T al=r*r+i*i+j*j+k*k;
+		if(al>Constants::eps<T>){
+			T ial=T(1)/std::sqrt(al);
+			if constexpr(std::is_same<T,float>::value){
+				#ifdef __SSE__
+				__m128 vq=_mm_load_ps(&(this->r));
+				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+				__m128 rr=_mm_mul_ps(vq,fourxial);
+				float rt[4];
+				_mm_store_ps(rt,rr);
+				r=rt[0];
+				i=rt[1];
+				j=rt[2];
+				k=rt[3];
+				#else
+				r*=ial;
+				i*=ial;
+				j*=ial;
+				k*=ial;
+				#endif
+			}else{
+				if constexpr(std::is_same<T,double>::value){
+					#ifdef __AVX2__
+					__m256d vq=_mm256_load_pd(&(this->r));
+					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+					__m256d rr=_mm256_mul_pd(vq,fourxial);
+					double rt[4];
+					_mm256_store_pd(rt,rr);
+					r=rt[0];
+					i=rt[1];
+					j=rt[2];
+					k=rt[3];
+					#else
+					r*=ial;
+					i*=ial;
+					j*=ial;
+					k*=ial;
+					#endif
+				}else{
+					r*=ial;
+					i*=ial;
+					j*=ial;
+					k*=ial;	
+				}
+			}
+		}
+		return *this;
+	}
+	Quaternion orthogonalized()const{
+		T al=r*r+i*i+j*j+k*k;
+		if(al>Constants::eps<T>){
+			T ial=T(1)/std::sqrt(al);
+			if constexpr(std::is_same<T,float>::value){
+				#ifdef __SSE__
+				__m128 vq=_mm_load_ps(&(this->r));
+				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+				__m128 rr=_mm_mul_ps(vq,fourxial);
+				float rt[4];
+				_mm_store_ps(rt,rr);
+				return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				#else
+				return Quaternion(r*ial,i*ial,j*ial,k*ial);
+				#endif
+			}else{
+				if constexpr(std::is_same<T,double>::value){
+					#ifdef __AVX2__
+					__m256d vq=_mm256_load_pd(&(this->r));
+					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+					__m256d rr=_mm256_mul_pd(vq,fourxial);
+					double rt[4];
+					_mm256_store_pd(rt,rr);
+					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					#else
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);
+					#endif
+				}else{
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);	
+				}
+			}
+		}
+		return *this;
+	}
 	//Determine whether a quaternion number is a unit quaternion number
 	MAYBE_CONSTEXPR bool isunit(T eeps=Constants::eps<T>)const{
 		T alsq=r*r+i*i+j*j+k*k;
@@ -328,6 +420,16 @@ struct alignas(16) Quaternion{
 		Quaternion q(std::cos(semiangle),x*std::sin(semiangle),y*std::sin(semiangle),z*std::sin(semiangle));
 		return q.normalized();
 	} 
+	//rotate
+	MAYBE_CONSTEXPR static Quaternion RotateX(T angle){
+		return FromAxisAngle(angle,1,0,0);
+	}
+	MAYBE_CONSTEXPR static Quaternion RotateY(T angle){
+		return FromAxisAngle(angle,0,1,0);
+	}
+	MAYBE_CONSTEXPR static Quaternion RotateZ(T angle){
+		return FromAxisAngle(angle,0,0,1);
+	}
 	//quaternion->rotation matrix
 	MAYBE_CONSTEXPR std::array<T,9> ToRotationMatrix()const{
 		T ww=r*r,xx=i*i,yy=j*j,zz=k*k,xw=r*i,yw=r*j,zw=r*k,xy=i*j,xz=i*k,yz=j*k;
@@ -510,6 +612,48 @@ struct alignas(16) Quaternion{
 	MAYBE_CONSTEXPR std::array<T,3> RotateVector(const std::array<T,3> &v)const{
 		return RotateVector(v[0],v[1],v[2]);
 	}
+	MAYBE_CONSTEXPR static Quaternion FromTwoVectors(const std::array<T,3> &from,const std::array<T,3> &to){
+		T lfrom=std::sqrt(from[0]*from[0]+from[1]*from[1]+from[2]*from[2]);
+		T lto=std::sqrt(to[0]*to[0]+to[1]*to[1]+to[2]*to[2]);
+		if(lfrom<Constants::eps<T>||lto<Constants::eps<T>){
+			return Quaternion();
+		}
+		T ilfrom=T(1)/lfrom,ilto=T(1)/lto;
+		T fx=from[0]*ilfrom,fy=from[1]*ilfrom,fz=from[2]*ilfrom;
+		T tx=to[0]*ilto,ty=to[1]*ilto,tz=to[2]*ilto;
+		T dt=fx*tx+fy*ty+fz*tz;
+		T cx=fy*tz-fz*ty,cy=fz*tx-fx*tz,cz=fx*ty-fy*tx;
+		if(dt<-T(0.9999)){
+			std::array<T,3> axx={1,0,0};
+			if(std::abs(fx)>T(0.9)){
+				axx={0,1,0};
+			}
+			T ax=fy*axx[2]-fz*axx[1];
+			T ay=fz*axx[0]-fx*axx[2];
+			T az=fx*axx[1]-fy*axx[0];
+			T len=std::sqrt(ax*ax+ay*ay+az*az);
+			if(len>Constants::eps<T>){
+				T ilen=T(1)/len;
+				return FromAxisAngle(Constants::PI<T>,ax*ilen,ay*ilen,az*ilen);
+			}
+			return Quaternion();
+		}
+		if(dt>T(0.9999)){
+			return Quaternion(T(1));
+		}
+		T w=T(1)+dt;
+		T iw=T(1)/std::sqrt(w*w+cx*cx+cy*cy+cz*cz);
+		return Quaternion(w*iw,cx*iw,cy*iw,cz*iw);
+	}
+	std::array<T,3> forward()const{
+		return RotateVector(T(0),T(0),T(1));
+	}
+	std::array<T,3> up()const{
+		return RotateVector(T(0),T(1),T(0));
+	}
+	std::array<T,3> right()const{
+		return RotateVector(T(1),T(0),T(0));
+	}
 	//axis(x,y,z)
 	MAYBE_CONSTEXPR std::array<T,3> axis()const{
 		if(std::isnan(r)||std::isnan(i)||std::isnan(j)||std::isnan(k)){
@@ -536,7 +680,7 @@ struct alignas(16) Quaternion{
 	}
 	//T(1)/(*this)
 	MAYBE_CONSTEXPR Quaternion inverse()const{
-		if(iszero(*this)){
+		if(std::abs(r)<Constants::eps<T>&&std::abs(i)<Constants::eps<T>&&std::abs(j)<Constants::eps<T>&&std::abs(k)<Constants::eps<T>){
 			return Quaternion();
 		}
 		return (this->conj())/(r*r+i*i+j*j+k*k);
@@ -590,16 +734,16 @@ Quaternion<double> from_glmd(const glm::dquat &g){
 }
 #endif
 #if HAS_EIGEN==1
-Quaternionf to_eigenqf(const Quaternion<float> &q){
-	return Quaternionf(q.r,q.i,q.j,q.k);
+Eigen::Quaternionf to_eigenqf(const Quaternion<float> &q){
+	return Eigen::Quaternionf(q.r,q.i,q.j,q.k);
 }
-Quaterniond to_eigenqd(const Quaternion<double> &q){
-	return Quaterniond(q.r,q.i,q.j,q.k);
+Eigen::Quaterniond to_eigenqd(const Quaternion<double> &q){
+	return Eigen::Quaterniond(q.r,q.i,q.j,q.k);
 }
-Quaternion<float> from_eigenqf(const Quaternionf &q){
+Quaternion<float> from_eigenqf(const Eigen::Quaternionf &q){
 	return Quaternion<float>(q.w(),q.x(),q.y(),q.z());
 }
-Quaternion<double> from_eigenqd(const Quaterniond &q){
+Quaternion<double> from_eigenqd(const Eigen::Quaterniond &q){
 	return Quaternion<double>(q.w(),q.x(),q.y(),q.z());
 }
 #endif
@@ -645,6 +789,10 @@ MAYBE_CONSTEXPR T abs(const Quaternion<T> &a){
 	return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
 }
 template<typename T>
+MAYBE_CONSTEXPR T norm(const Quaternion<T> &a){
+	return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
+}
+template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> operator /(T a,const Quaternion<T> &b){
 	T mb=abs(b);
 	if(mb<Constants::eps<T>){
@@ -668,8 +816,8 @@ MAYBE_CONSTEXPR Quaternion<T> operator +(const Quaternion<T> &a,const Quaternion
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_load_pd(&a.r);
-			__m256d vb=_mm256_load_pd(&b.r);
+			__m256d va=_mm256_loadu_pd(&a.r);
+			__m256d vb=_mm256_loadu_pd(&b.r);
 			__m256d r=_mm256_add_pd(va,vb);
 			double rs[4];
 			_mm256_store_pd(rs,r);
@@ -698,8 +846,8 @@ MAYBE_CONSTEXPR Quaternion<T> operator -(const Quaternion<T> &a,const Quaternion
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_load_pd(&a.r);
-			__m256d vb=_mm256_load_pd(&b.r);
+			__m256d va=_mm256_loadu_pd(&a.r);
+			__m256d vb=_mm256_loadu_pd(&b.r);
 			__m256d r=_mm256_sub_pd(va,vb);
 			double rs[4];
 			_mm256_store_pd(rs,r);
@@ -737,8 +885,8 @@ MAYBE_CONSTEXPR Quaternion<T> operator *(Quaternion<T> a,Quaternion<T> b){
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_load_pd(&a.r);
-			__m256d vb=_mm256_load_pd(&b.r);
+			__m256d va=_mm256_loadu_pd(&a.r);
+			__m256d vb=_mm256_loadu_pd(&b.r);
 			double tp[4];
 			_mm256_store_pd(tp,vb);
 			__m256d a0=_mm256_permute4x64_pd(va,_MM_SHUFFLE(0,0,0,0));
@@ -929,6 +1077,23 @@ MAYBE_CONSTEXPR Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &
 	T s2=sin_theta/sin_theta0;
 	T s1=std::cos(theta)-d*s2;
 	return (a*s1)+(b*sign*s2);
+}
+template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> nlerp(const Quaternion<T> &a,const Quaternion<T> &b,T t,T eeps=Constants::eps<T>){
+	Quaternion<T> b2=b;
+	if(dot(a,b)<T(0)){
+		b2=-b;
+	}
+	Quaternion<T> q=a*(T(1)-t)+b2*t;
+	T normsq=norm(q);
+	if(std::abs(normsq-T(1))>eeps){
+		T inorm=T(1)/std::sqrt(normsq);
+		q.r*=inorm;
+		q.i*=inorm;
+		q.j*=inorm;
+		q.k*=inorm;
+	}
+	return q;
 }
 //n-th root
 template<typename T>
@@ -1161,7 +1326,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 			throw std::invalid_argument("There are illegal characters in the input");
 		}
 	}
-	if(std::count(s.begin(),s.end(),'<')==1&&s.find("<")==s.find(")")+1&&s.find(")")!=-1&&(s.find("i")==-1&&s.find("j")==-1&&s.find("k")==-1)){
+	if(std::count(s.begin(),s.end(),'<')==1&&s.find("<")==s.find(")")+1&&s.find(")")!=s.npos&&(s.find("i")==s.npos&&s.find("j")==s.npos&&s.find("k")==s.npos)){
 		if(s.find("(")!=0){
 			s.erase(s.find("("),1);
 			s.insert(0,"(");
@@ -1179,7 +1344,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		q=std::cos(theta/2)+u*std::sin(theta/2);
 		return in;
 	}
-	while(s.find("<")!=-1){
+	while(s.find("<")!=s.npos){
 		s.erase(s.find("<"),1);
 	}
 	if(s[0]!='+'&&s[0]!='-'){
@@ -1266,7 +1431,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 		}
 		char sign=t[0];
 		std::string coe=t.substr(1);
-		if(coe.find("i")!=-1){
+		if(coe.find("i")!=coe.npos){
 			std::string nn=coe.substr(0,coe.size()-1);
 			T val;
 			try{
@@ -1279,7 +1444,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 			}
 			q.i+=(sign=='+')?val:-val;
 		}else{
-			if(coe.find("j")!=-1){
+			if(coe.find("j")!=coe.npos){
 				std::string nn=coe.substr(0,coe.size()-1);
 				T val;
 				try{
@@ -1292,7 +1457,7 @@ std::istream &operator >>(std::istream &in,Quaternion<T> &q){
 				}
 				q.j+=(sign=='+')?val:-val;
 			}else{
-				if(coe.find("k")!=-1){
+				if(coe.find("k")!=coe.npos){
 					std::string nn=coe.substr(0,coe.size()-1);
 					T val;
 					try{
@@ -1406,6 +1571,12 @@ std::ostream &operator <<(std::ostream &o,const Quaternion<T> &q){
 //literals
 #if __cplusplus>201103L
 namespace QLiterals{
+	MAYBE_CONSTEXPR long double operator""_deg(long double deg){
+		return deg*Constants::PI<long double>/180.0L;
+	}
+	MAYBE_CONSTEXPR long double operator""_deg(unsigned long long deg){
+		return static_cast<long double>(deg)*Constants::PI<long double>/180.0L;
+	}
 	MAYBE_CONSTEXPR Quaternion<float> operator""_if(unsigned long long x){
 		return Quaternion<float>((float)(0),(float)x,(float)(0),(float)(0));
 	}
