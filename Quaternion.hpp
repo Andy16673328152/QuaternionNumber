@@ -1003,8 +1003,40 @@ MAYBE_CONSTEXPR Quaternion<T> log(const Quaternion<T> &a){
 	}
 	T ipa=T(1)/pa;
 	T img=T(1)/mg;
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
-	return std::log(mg)+u*std::acos(a.r*img);
+	if constexpr(std::is_same<T,float>::value){
+		#ifdef __SSE__
+		float rst[4]={0.0,a.i,a.j,a.k};
+		__m128 r=_mm_load_ps(&rst[0]);
+		r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+		float acc=std::acos(a.r*img);
+		__m128 gh=_mm_mul_ps(r,_mm_set_ps(acc,acc,acc,acc));
+		float das[4];
+		_mm_store_ps(das,gh);
+		return Quaternion<T>(das[0]+std::log(mg),das[1],das[2],das[3]);
+		#else
+		Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+		return std::log(mg)+u*std::acos(a.r*img);
+		#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			double rst[4]={0.0,a.i,a.j,a.k};
+			__m256d r=_mm256_loadu_pd(&rst[0]);
+			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+			double acc=std::acos(a.r*img);
+			__m256d gh=_mm256_mul_pd(r,_mm256_set_pd(acc,acc,acc,acc));
+			double das[4];
+			_mm256_store_pd(das,gh);
+			return Quaternion<T>(das[0]+std::log(mg),das[1],das[2],das[3]);
+			#else
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::log(mg)+u*std::acos(a.r*img);
+			#endif
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::log(mg)+u*std::acos(a.r*img);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> log10(const Quaternion<T> &a){
@@ -1029,8 +1061,52 @@ MAYBE_CONSTEXPR Quaternion<T> exp(const Quaternion<T> &a){
 		return Quaternion<T>(std::exp(a.r),0,0,0);
 	}
 	T ipa=T(1)/pa;
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
-	return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
+	if constexpr(std::is_same<T,float>::value){
+		#ifdef __SSE__
+		float rst[4]={0.0,a.i,a.j,a.k};
+		__m128 r=_mm_load_ps(&rst[0]);
+		r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+		float cpa=std::cos(pa),spa=std::sin(pa);
+		__m128 df=_mm_mul_ps(r,_mm_set_ps(spa,spa,spa,spa));
+		float ds[4];
+		_mm_store_ps(ds,df);
+		ds[0]=cpa;
+		__m128 sec=_mm_load_ps(&ds[0]);
+		float exa=std::exp(a.r);
+		sec=_mm_mul_ps(sec,_mm_set_ps(exa,exa,exa,exa));
+		float das[4];
+		_mm_store_ps(das,sec);
+		return Quaternion<T>(das[0],das[1],das[2],das[3]);
+		#else
+		Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+		return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
+		#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			double rst[4]={0.0,a.i,a.j,a.k};
+			__m256d r=_mm256_loadu_pd(&rst[0]);
+			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+			double cpa=std::cos(pa),spa=std::sin(pa);
+			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(spa,spa,spa,spa));
+			double ds[4];
+			_mm256_store_pd(ds,df);
+			ds[0]=cpa;
+			__m256d sec=_mm256_load_pd(&ds[0]);
+			double exa=std::exp(a.r);
+			sec=_mm256_mul_pd(sec,_mm256_set_pd(exa,exa,exa,exa));
+			double das[4];
+			_mm256_store_pd(das,sec);
+			return Quaternion<T>(das[0],das[1],das[2],das[3]);
+			#else
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
+			#endif
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> pow(const Quaternion<T> &a,const Quaternion<T> &b){
@@ -1053,7 +1129,6 @@ template<typename T>
 MAYBE_CONSTEXPR T dot(const Quaternion<T> &a,const Quaternion<T> &b){
 	return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
 }
-
 template <typename T>
 Quaternion<T> unit(T b,T c,T d){
 	return Quaternion<T>(0.0,b/std::sqrt(b*b+c*c+d*d),c/std::sqrt(b*b+c*c+d*d),d/std::sqrt(b*b+c*c+d*d));
@@ -1132,8 +1207,40 @@ MAYBE_CONSTEXPR Quaternion<T> sin(const Quaternion<T> &a){
 		return Quaternion<T>(std::sin(a.r),0,0,0);
 	}
 	T ipa=T(1)/pa;
+	if constexpr(std::is_same<T,float>::value){
+	#ifdef __SSE__
+	float rst[4]={0.0,a.i,a.j,a.k};
+	__m128 r=_mm_load_ps(&rst[0]);
+	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+	float cs=std::cos(a.r)*std::sinh(pa);
+	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
+	float das[4];
+	_mm_store_ps(das,df);
+	return Quaternion<T>(das[0]+std::sin(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+	#else
 	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
+	#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			double rst[4]={0.0,a.i,a.j,a.k};
+			__m256d r=_mm256_loadu_pd(&rst[0]);
+			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+			double cs=std::cos(a.r)*std::sinh(pa);
+			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
+			double das[4];
+			_mm256_store_pd(das,df);
+			return Quaternion<T>(das[0]+std::sin(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+			#else
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
+			#endif
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> cos(const Quaternion<T> &a){
@@ -1145,8 +1252,40 @@ MAYBE_CONSTEXPR Quaternion<T> cos(const Quaternion<T> &a){
 		return Quaternion<T>(std::cos(a.r),0,0,0);
 	}
 	T ipa=T(1)/pa;
+	if constexpr(std::is_same<T,float>::value){
+	#ifdef __SSE__
+	float rst[4]={0.0,a.i,a.j,a.k};
+	__m128 r=_mm_load_ps(&rst[0]);
+	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+	float cs=-std::sin(a.r)*std::sinh(pa);
+	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
+	float das[4];
+	_mm_store_ps(das,df);
+	return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+	#else
 	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
+	#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			double rst[4]={0.0,a.i,a.j,a.k};
+			__m256d r=_mm256_loadu_pd(&rst[0]);
+			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+			double cs=-std::sin(a.r)*std::sinh(pa);
+			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
+			double das[4];
+			_mm256_store_pd(das,df);
+			return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+			#else
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
+			#endif
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> tan(const Quaternion<T> &a){
@@ -1203,8 +1342,40 @@ MAYBE_CONSTEXPR Quaternion<T> sinh(const Quaternion<T> &a){
 		return Quaternion<T>(std::sinh(a.r),0,0,0);
 	}
 	T ipa=T(1)/pa;
+	if constexpr(std::is_same<T,float>::value){
+	#ifdef __SSE__
+	float rst[4]={0.0,a.i,a.j,a.k};
+	__m128 r=_mm_load_ps(&rst[0]);
+	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+	float cs=std::cosh(a.r)*std::sin(pa);
+	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
+	float das[4];
+	_mm_store_ps(das,df);
+	return Quaternion<T>(das[0]+std::sinh(a.r)*std::cos(pa),das[1],das[2],das[3]);
+	#else
 	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
+	#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			double rst[4]={0.0,a.i,a.j,a.k};
+			__m256d r=_mm256_loadu_pd(&rst[0]);
+			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+			double cs=std::cosh(a.r)*std::sin(pa);
+			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
+			double das[4];
+			_mm256_store_pd(das,df);
+			return Quaternion<T>(das[0]+std::sinh(a.r)*std::cos(pa),das[1],das[2],das[3]);
+			#else
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
+			#endif
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> cosh(const Quaternion<T> &a){
@@ -1216,8 +1387,40 @@ MAYBE_CONSTEXPR Quaternion<T> cosh(const Quaternion<T> &a){
 		return Quaternion<T>(std::cosh(a.r),0,0,0);
 	}
 	T ipa=T(1)/pa;
+	if constexpr(std::is_same<T,float>::value){
+	#ifdef __SSE__
+	float rst[4]={0.0,a.i,a.j,a.k};
+	__m128 r=_mm_load_ps(&rst[0]);
+	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+	float cs=std::sin(a.r)*std::sinh(pa);
+	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
+	float das[4];
+	_mm_store_ps(das,df);
+	return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+	#else
 	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
+	#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			double rst[4]={0.0,a.i,a.j,a.k};
+			__m256d r=_mm256_loadu_pd(&rst[0]);
+			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+			double cs=std::sin(a.r)*std::sinh(pa);
+			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
+			double das[4];
+			_mm256_store_pd(das,df);
+			return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+			#else
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
+			#endif
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> tanh(const Quaternion<T> &a){
