@@ -1392,11 +1392,11 @@ MAYBE_CONSTEXPR Quaternion<T> cosh(const Quaternion<T> &a){
 	float rst[4]={0.0,a.i,a.j,a.k};
 	__m128 r=_mm_load_ps(&rst[0]);
 	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
-	float cs=std::sin(a.r)*std::sinh(pa);
+	float cs=std::sinh(a.r)*std::sin(pa);
 	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
 	float das[4];
 	_mm_store_ps(das,df);
-	return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+	return Quaternion<T>(das[0]+std::cosh(a.r)*std::cos(pa),das[1],das[2],das[3]);
 	#else
 	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
@@ -1407,11 +1407,11 @@ MAYBE_CONSTEXPR Quaternion<T> cosh(const Quaternion<T> &a){
 			double rst[4]={0.0,a.i,a.j,a.k};
 			__m256d r=_mm256_loadu_pd(&rst[0]);
 			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
-			double cs=std::sin(a.r)*std::sinh(pa);
+			double cs=std::sinh(a.r)*std::sin(pa);
 			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
 			double das[4];
 			_mm256_store_pd(das,df);
-			return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+			return Quaternion<T>(das[0]+std::cosh(a.r)*std::cos(pa),das[1],das[2],das[3]);
 			#else
 			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
