@@ -1,9 +1,14 @@
 # QuaternionNumber
 This library is a header-only library,it provides:
+
     - Quaternion basic operations;
+    
     - Transcendental functions;
+    
     - Literals;
+    
     - `slerp` interpolation(SIMD);
+    
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![C++](https://img.shields.io/badge/C%2B%2B-17/20/23-blue.svg)](https://isocpp.org/)
