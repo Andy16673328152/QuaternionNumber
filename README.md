@@ -8,6 +8,8 @@ This library is a header-only library,it provides:
     - Literals;
     
     - `slerp` interpolation(SIMD);
+
+    - Conversion functions with other libraries.
     
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
