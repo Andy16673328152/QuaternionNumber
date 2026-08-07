@@ -419,8 +419,37 @@ struct alignas(16) Quaternion{
 	//(x,y,z),theta->quaternion
 	MAYBE_CONSTEXPR static Quaternion FromAxisAngle(T angle,T x,T y,T z){
 		T semiangle=angle/2.0;
-		Quaternion q(std::cos(semiangle),x*std::sin(semiangle),y*std::sin(semiangle),z*std::sin(semiangle));
-		return q.normalized();
+		T ss=std::sin(semiangle),cs=std::cos(semiangle);
+		if constexpr(std::is_same<T,float>::value){
+			#ifdef __SSE__
+			__m128 ve=_mm_set_ps(z,y,x,0);
+			__m128 img=_mm_mul_ps(ve,_mm_set_ps(ss,ss,ss,ss));
+			float res[4];
+			_mm_store_ps(res,img);
+			Quaternion q(cs+res[0],res[1],res[2],res[3]);
+			return q.normalized();
+			#else
+			Quaternion q(cs,x*ss,y*ss,z*ss);
+			return q.normalized();
+			#endif
+		}else{
+			if constexpr(std::is_same<T,double>::value){
+				#ifdef __AVX2__
+				__m256d ve=_mm256_set_pd(z,y,x,0);
+				__m256d img=_mm256_mul_pd(ve,_mm_set_ps(ss,ss,ss,ss));
+				double res[4];
+				_mm256_store_pd(res,img);
+				Quaternion q(cs+res[0],res[1],res[2],res[3]);
+				return q.normalized();
+				#else
+				Quaternion q(cs,x*ss,y*ss,z*ss);
+				return q.normalized();
+				#endif
+			}else{
+				Quaternion q(cs,x*ss,y*ss,z*ss);
+				return q.normalized();
+			}
+		}
 	} 
 	//rotate
 	MAYBE_CONSTEXPR static Quaternion RotateX(T angle){
@@ -439,6 +468,24 @@ struct alignas(16) Quaternion{
 			1-2*(yy+zz),2*(xy-zw),2*(xz+yw),
 			2*(xy+zw),1-2*(xx+zz),2*(yz-xw),
 			2*(xz-yw),2*(yz+xw),1-2*(xx+yy)
+		};
+	}
+	MAYBE_CONSTEXPR std::array<T,16> ToMat4()const{
+		auto ret=ToRotationMatrix();
+		return {
+			ret[0],ret[3],ret[6],T(0),
+			ret[1],ret[4],ret[7],T(0),
+			ret[2],ret[5],ret[8],T(0),
+			T(0),T(0),T(0),T(1)
+		};
+	}
+	MAYBE_CONSTEXPR std::array<T,16> ToMat4(const std::array<T,3>& trans)const{
+		auto ret=ToRotationMatrix();
+		return {
+			ret[0],ret[3],ret[6],trans[0],
+			ret[1],ret[4],ret[7],trans[1],
+			ret[2],ret[5],ret[8],trans[2],
+			T(0),T(0),T(0),T(1)
 		};
 	}
 	//rotation matrix->quaternion
@@ -788,11 +835,59 @@ MAYBE_CONSTEXPR Quaternion<T> operator /(Quaternion<T> a,T b){
 }
 template<typename T>
 MAYBE_CONSTEXPR T abs(const Quaternion<T> &a){
-	return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
+	if constexpr(std::is_same<T,float>::value){
+		#ifdef __SSE__
+		__m128 va=_mm_load_ps(&a.r);
+		va=_mm_mul_ps(va,va);
+		float res[4];
+		_mm_store_ps(res,va);
+		return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+		#else
+		return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
+		#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			__m256d va=_mm256_loadu_pd(&a.r);
+			va=_mm256_mul_pd(va,va);
+			double res[4];
+			_mm256_store_pd(res,va);
+			return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+			#else
+			return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
+			#endif
+		}else{
+			return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR T norm(const Quaternion<T> &a){
-	return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
+	if constexpr(std::is_same<T,float>::value){
+		#ifdef __SSE__
+		__m128 va=_mm_load_ps(&a.r);
+		va=_mm_mul_ps(va,va);
+		float res[4];
+		_mm_store_ps(res,va);
+		return res[0]+res[1]+res[2]+res[3];
+		#else
+		return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
+		#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			__m256d va=_mm256_loadu_pd(&a.r);
+			va=_mm256_mul_pd(va,va);
+			double res[4];
+			_mm256_store_pd(res,va);
+			return res[0]+res[1]+res[2]+res[3];
+			#else
+			return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
+			#endif
+		}else{
+			return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
+		}
+	}
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> operator /(T a,const Quaternion<T> &b){
@@ -1129,7 +1224,33 @@ MAYBE_CONSTEXPR Quaternion<T> cbrt(const Quaternion<T> &a){
 //a ·b 
 template<typename T>
 MAYBE_CONSTEXPR T dot(const Quaternion<T> &a,const Quaternion<T> &b){
-	return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
+	if constexpr(std::is_same<T,float>::value){
+		#ifdef __SSE__
+		__m128 va=_mm_load_ps(&a.r);
+		__m128 vb=_mm_load_ps(&b.r);
+		va=_mm_mul_ps(va,vb);
+		float res[4];
+		_mm_store_ps(res,va);
+		return res[0]+res[1]+res[2]+res[3];
+		#else
+		return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
+		#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			__m256d va=_mm256_loadu_pd(&a.r);
+			__m256d vb=_mm256_loadu_pd(&b.r);
+			va=_mm256_mul_pd(va,vb);
+			double res[4];
+			_mm256_store_pd(res,va);
+			return res[0]+res[1]+res[2]+res[3];
+			#else
+			return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
+			#endif
+		}else{
+			return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
+		}
+	}
 }
 template <typename T>
 Quaternion<T> unit(T b,T c,T d){
@@ -1164,7 +1285,7 @@ MAYBE_CONSTEXPR Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &
 			if constexpr(std::is_same<T,double>::value){
 				#ifdef __AVX2__
 				__m256d va=_mm256_loadu_pd(&a.r);
-				__m256d vb=_mm_loadu_pd(&b.r);
+				__m256d vb=_mm256_loadu_pd(&b.r);
 				vb=_mm256_mul_pd(vb,_mm256_set_pd(sign,sign,sign,sign));
 				vb=_mm256_sub_pd(vb,va);
 				vb=_mm256_mul_pd(vb,_mm256_set_pd(t,t,t,t));
@@ -1224,14 +1345,78 @@ MAYBE_CONSTEXPR Quaternion<T> nlerp(const Quaternion<T> &a,const Quaternion<T> &
 	if(dot(a,b)<T(0)){
 		b2=-b;
 	}
-	Quaternion<T> q=a*(T(1)-t)+b2*t;
+	Quaternion<T> q;
+	if constexpr(std::is_same<T,float>::value){
+		#ifdef __SSE__
+		T ont=(T(1)-t);
+		__m128 va=_mm_load_ps(&a.r);
+		__m128 vb=_mm_load_ps(&b.r);
+		va=_mm_mul_ps(va,_mm_set_ps(ont,ont,ont,ont));
+		vb=_mm_mul_ps(vb,_mm_set_ps(t,t,t,t));
+		__m128 vc=_mm_add_ps(va,vb);
+		float res[4];
+		_mm_store_ps(res,vc);
+		q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+		#else
+		q=a*(T(1)-t)+b2*t;
+		#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			T ont=(T(1)-t);
+			__m256d va=_mm256_load_pd(&a.r);
+			__m256d vb=_mm256_load_pd(&b.r);
+			va=_mm256_mul_pd(va,_mm256_set_pd(ont,ont,ont,ont));
+			vb=_mm256_mul_pd(vb,_mm256_set_pd(t,t,t,t));
+			__m256d vc=_mm256_add_pd(va,vb);
+			double res[4];
+			_mm256_store_pd(res,vc);
+			q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+			#else
+			q=a*(T(1)-t)+b2*t;
+			#endif
+		}else{
+			q=a*(T(1)-t)+b2*t;
+		}
+	}
+
 	T normsq=norm(q);
 	if(std::abs(normsq-T(1))>eeps){
 		T inorm=T(1)/std::sqrt(normsq);
-		q.r*=inorm;
-		q.i*=inorm;
-		q.j*=inorm;
-		q.k*=inorm;
+		if constexpr(std::is_same<T,float>::value){
+			#ifdef __SSE__
+			__m128 vq=_mm_load_ps(&q.r);
+			vq=_mm_mul_ps(vq,_mm_set_ps(inorm,inorm,inorm,inorm));
+			float res[4];
+			_mm_store_ps(res,vq);
+			q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+			#else
+			q.r*=inorm;
+			q.i*=inorm;
+			q.j*=inorm;
+			q.k*=inorm;
+			#endif
+		}else{
+			if constexpr(std::is_same<T,double>::value){
+				#ifdef __AVX2__
+				__m256d vq=_mm256_loadu_pd(&q.r);
+				vq=_mm256_mul_pd(vq,_mm256_set_pd(inorm,inorm,inorm,inorm));
+				double res[4];
+				_mm256_store_pd(res,vq);
+				q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+				#else
+				q.r*=inorm;
+				q.i*=inorm;
+				q.j*=inorm;
+				q.k*=inorm;
+				#endif
+			}else{
+				q.r*=inorm;
+				q.i*=inorm;
+				q.j*=inorm;
+				q.k*=inorm;
+			}
+		}
 	}
 	return q;
 }
@@ -1579,6 +1764,48 @@ Quaternion<T> stoq(const std::string &s){
 		throw std::runtime_error("Failed to parse quaternion: "+s);
 	}
 	return q;
+}
+//differentation functions
+template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> derivative_local(const Quaternion<T> &q,const Quaternion<T> &omg){
+	if(std::abs(omg.r)>Constants::eps<T>){
+		return T(0.5)*(pure(q)*omg);
+	}
+	return T(0.5)*(q*omg);
+}
+template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> derivative_world(const Quaternion<T> &q,const Quaternion<T> &omg){
+	if(std::abs(omg.r)>Constants::eps<T>){
+		return T(0.5)*(pure(omg)*q);
+	}
+	return T(0.5)*(omg*q);
+}
+template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> integrate_euler(const Quaternion<T> &q,const Quaternion<T> &omg,T dt){
+	if(std::abs(omg.r)>Constants::eps<T>){
+		return (q+derivative_local(q,pure(omg))*dt).normalized();
+	}
+	return (q+derivative_local(q,omg)*dt).normalized();
+}
+template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> integrate_exp(const Quaternion<T> &q,const Quaternion<T> &omg,T dt){
+	if(std::abs(omg.r)>Constants::eps<T>){
+		return exp(pure(omg)*dt*T(0.5))*q;
+	}
+	return exp(omg*dt*T(0.5))*q;
+}
+template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> err(const Quaternion<T> &cur,const Quaternion<T> &tar){
+	return cur.inverse()*tar;
+}
+template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> angular_velocity(const Quaternion<T> &prev,const Quaternion<T> &cur,T dt){
+	Quaternion<T> qd=prev.inverse()*cur;
+	return 2*log(qd)/dt;
+}
+template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> perturb(const Quaternion<T> &q,const Quaternion<T> &delta){
+	return q*exp(delta);
 }
 //quaternion->string
 template<typename T>
