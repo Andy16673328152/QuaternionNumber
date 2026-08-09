@@ -470,6 +470,9 @@ struct alignas(16) Quaternion{
 			2*(xz-yw),2*(yz+xw),1-2*(xx+yy)
 		};
 	}
+	MAYBE_CONSTEXPR std::array<T,9> ToMat3()const{
+		return ToRotationMatrix();
+	}
 	MAYBE_CONSTEXPR std::array<T,16> ToMat4()const{
 		auto ret=ToRotationMatrix();
 		return {
@@ -525,6 +528,17 @@ struct alignas(16) Quaternion{
 			}
 		}
 		return q;
+	}
+	static Quaternion FromMat3(const std::array<T,9>& mat){
+		return FromRotationMatrix(mat);
+	}
+	static Quaternion FromMat4(const std::array<T,16> &mat){
+		std::array<T,9> mat1={
+			mat[0],mat[1],mat[2],
+			mat[4],mat[5],mat[6],
+			mat[8],mat[9],mat[10]
+		};
+		return FromRotationMatrix(mat1);
 	}
 	enum class EulerOrder{
 		XYZ,XZY,YXZ,YZX,ZXY,ZYX
@@ -693,6 +707,32 @@ struct alignas(16) Quaternion{
 		T w=T(1)+dt;
 		T iw=T(1)/std::sqrt(w*w+cx*cx+cy*cy+cz*cz);
 		return Quaternion(w*iw,cx*iw,cy*iw,cz*iw);
+	}
+	static Quaternion LookAt(const std::array<T,3>& direction,const std::array<T,3> up={T(0),T(1),T(0)}){
+		T lend=std::sqrt(direction[0]*direction[0]+direction[1]*direction[1]+direction[2]*direction[2]);
+		if(lend<Constants::eps<T>){
+			return Quaternion(T(1),T(0),T(0),T(0));
+		}
+		T f[3]={direction[0]/lend,direction[1]/lend,direction[2]/lend};
+		T lenup=std::sqrt(up[0]*up[0]+up[1]*up[1]+up[2]*up[2]);
+		if(lenup<Constants::eps<T>){
+			return Quaternion(T(1),T(0),T(0),T(0));
+		}
+		T g[3]={up[0]/lenup,up[1]/lenup,up[2]/lenup};
+		T rr[3]={f[1]*g[2]-f[2]*g[1],f[2]*g[0]-f[0]*g[2],f[0]*g[1]-f[1]*g[0]};
+		T lenrr=std::sqrt(rr[0]*rr[0]+rr[1]*rr[1]+rr[2]*rr[2]);
+		if(lenrr<Constants::eps<T>){
+			std::array<T,3> altup={T(0),T(0),(std::abs(f[2])<T(0.9)?T(1):T(0))};
+			return LookAt(direction,altup);
+		}
+		rr[0]/=lenrr;rr[1]/=lenrr;rr[2]/=lenrr;
+		T u[3]={rr[1]*f[2]-rr[2]*f[1],rr[2]*f[0]-rr[0]*f[2],rr[0]*f[1]-rr[1]*f[0]};
+		std::array<T,9> mat={
+			rr[0],u[0],-f[0],
+			rr[1],u[1],-f[1],
+			rr[2],u[2],-f[2]
+		};
+		return FromRotationMatrix(mat);
 	}
 	std::array<T,3> forward()const{
 		return RotateVector(T(0),T(0),T(1));
@@ -1210,6 +1250,33 @@ MAYBE_CONSTEXPR Quaternion<T> pow(const Quaternion<T> &a,const Quaternion<T> &b)
 	return exp(log(a)*b);
 }
 template<typename T>
+MAYBE_CONSTEXPR Quaternion<T> pow_int(const Quaternion<T> &a,int n){
+	if(n==0){
+		return Quaternion<T>(T(1));
+	}
+	if(n==1){
+		return a;
+	}
+	if(n==2){
+		return a*a;
+	}
+	if(n==3){
+		return a*a*a;
+	}
+	if(n<0){
+		return pow_int(a.inverse(),-n);
+	}
+	Quaternion<T> ans=Quaternion<T>(T(1)),tmp=a;
+    while(n>0){
+        if(n&1){
+            ans=ans*tmp;
+        }
+        tmp=tmp*tmp;
+        n>>=1;
+    }
+    return ans;
+}
+template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> nthrt(const Quaternion<T> &a,const Quaternion<T> &b){
 	return pow(a,T(1)/b);
 }
@@ -1220,6 +1287,53 @@ MAYBE_CONSTEXPR Quaternion<T> sqrt(const Quaternion<T> &a){
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> cbrt(const Quaternion<T> &a){
 	return nthrt(a,Quaternion<T>(3.0));
+}
+//distance
+template <typename T>
+MAYBE_CONSTEXPR T angle_distance(const Quaternion<T> &a,const Quaternion<T> &b){
+	Quaternion<T> diff=a.inverse()*b;
+	T real=diff.r;
+	real=std::max(T(-1),std::min(real,T(1)));
+	return T(2)*std::acos(real);
+}
+template <typename T>
+MAYBE_CONSTEXPR T euclidean_distance(const Quaternion<T> &a,const Quaternion<T> &b){
+	if constexpr(std::is_same<T,float>::value){
+		#ifdef __SSE__
+		__m128 va=_mm_load_ps(&a.r),vb=_mm_load_ps(&b.r);
+		__m128 vd=_mm_sub_ps(va,vb);
+		vd=_mm_mul_ps(vd,vd);
+		float res[4];
+		_mm_store_ps(res,vd);
+		return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+		#else
+		Quaternion<T> d=a-b;
+		return abs(d);
+		#endif
+	}else{
+		if constexpr(std::is_same<T,double>::value){
+			#ifdef __AVX2__
+			__m256d va=_mm256_loadu_pd(&a.r),vb=_mm256_loadu_pd(&b.r);
+			__m256d vd=_mm256_sub_pd(va,vb);
+			vd=_mm256_mul_pd(vd,vd);
+			double res[4];
+			_mm256_store_pd(res,vd);
+			return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+			#else
+			Quaternion<T> d=a-b;
+			return abs(d);
+			#endif
+		}else{
+			Quaternion<T> d=a-b;
+			return abs(d);
+		}
+	}
+}
+template<typename T>
+MAYBE_CONSTEXPR T chordal_distance(const Quaternion<T> &a,const Quaternion<T> &b){
+	T dv=dot(a,b);
+	dv=std::max(T(-1),std::min(dv,T(1)));
+	return T(2)*std::asin(std::sqrt(T(1)-dv*dv)/T(2));
 }
 //a ·b 
 template<typename T>
@@ -1251,6 +1365,31 @@ MAYBE_CONSTEXPR T dot(const Quaternion<T> &a,const Quaternion<T> &b){
 			return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
 		}
 	}
+}
+template <typename T>
+Quaternion<T> average(const std::vector<Quaternion<T> > &qs){
+	if(qs.empty()){
+		return Quaternion<T>(T(1),T(0),T(0),T(0));
+	}
+	if(qs.size()==1){
+		return qs[0];
+	}
+	Quaternion<T> sum=Quaternion<T>::zero(),ref=qs[0];
+	for(const auto &q:qs){
+		Quaternion<T> qq=q;
+		if(dot(ref,qq)<T(0)){
+			qq=-qq;
+		}
+		sum=sum+qq;
+	}
+	return sum.normalized();
+}
+template <typename T>
+MAYBE_CONSTEXPR T angle_between(const Quaternion<T> &a,const Quaternion<T> &b){
+	Quaternion<T> diff=a.inverse()*b;
+	T real=diff.r;
+	real=std::max(T(-1),std::min(real,T(1)));
+	return T(2)*std::acos(real);
 }
 template <typename T>
 Quaternion<T> unit(T b,T c,T d){
@@ -1339,6 +1478,13 @@ MAYBE_CONSTEXPR Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &
 		}
 	}
 }
+//slerp batch(AoS)
+template<typename T>
+void slerp_batch(const Quaternion<T> *a,const Quaternion<T> *b,const T *t,Quaternion<T> *dst,std::size_t n){
+	for(std::size_t i=0;i<n;i++){
+		dst[i]=slerp(a[i],b[i],t[i]);
+	}
+}
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> nlerp(const Quaternion<T> &a,const Quaternion<T> &b,T t,T eeps=Constants::eps<T>){
 	Quaternion<T> b2=b;
@@ -1419,6 +1565,70 @@ MAYBE_CONSTEXPR Quaternion<T> nlerp(const Quaternion<T> &a,const Quaternion<T> &
 		}
 	}
 	return q;
+}
+//Squad
+template<typename T>
+Quaternion<T> squad_tangent(const Quaternion<T> &pre,const Quaternion<T> &cur,const Quaternion<T> &nxt){
+	Quaternion<T> icur=cur.inverse();
+	Quaternion<T> lognxt=log(icur*nxt);
+	Quaternion<T> logpre=log(icur*pre);
+	Quaternion<T> sumlog=lognxt+logpre;
+	sumlog*=T(-0.25);
+	Quaternion<T> explog=exp(sumlog);
+	return cur*explog;
+}
+template <typename T>
+MAYBE_CONSTEXPR Quaternion<T> squad(const Quaternion<T> &a,const Quaternion<T> &b,const Quaternion<T> &c,const Quaternion<T> &d,T t){
+	if(t<=Constants::eps<T>){
+		return b;
+	}
+	if(t>=1-Constants::eps<T>){
+		return c;
+	}
+	Quaternion<T> p0=slerp(b,c,t),p1=slerp(a,d,t);
+	T blend=T(2)*t*(T(1)-t);
+	return slerp(p0,p1,blend);
+}
+template <typename T>
+struct SquadControl{
+	Quaternion<T> q,tangent;
+};
+template <typename T>
+void ComputeSquadChain(const std::vector<Quaternion<T> >&qs,std::vector<SquadControl<T> >&controls){
+	if(qs.size()<2){
+		return;
+	}
+	controls.resize(qs.size());
+	for(std::size_t i=0;i<qs.size();i++){
+		controls[i].q=qs[i];
+		if(i==0){
+			controls[i].tangent=qs[i];
+		}else{
+			if(i==qs.size()-1){
+				controls[i].tangent=qs[i];
+			}else{
+				Quaternion<T> icur=qs[i].inverse();
+				Quaternion<T> lognxt=log(icur*qs[i+1]);
+				Quaternion<T> logpre=log(icur*qs[i-1]);
+				Quaternion<T> sumlog=lognxt+logpre;
+				sumlog*=T(-0.25);
+				Quaternion<T> explog=exp(sumlog);
+				controls[i].tangent=qs[i]*explog;
+			}
+		}
+	}
+}
+template <typename T>
+MAYBE_CONSTEXPR Quaternion<T> SquadFromControls(const SquadControl<T> &a,const SquadControl<T> &b,const SquadControl<T> &c,const SquadControl<T> &d,T t){
+	if(t<=Constants::eps<T>){
+		return b.q;
+	}
+	if(t>=1-Constants::eps<T>){
+		return c.q;
+	}
+	Quaternion<T> p0=slerp(b.q,c.q,t),p1=slerp(a.tangent,d.tangent,t);
+	T blend=T(2)*t*(T(1)-t);
+	return slerp(p0,p1,blend);
 }
 //n-th root
 template<typename T>
