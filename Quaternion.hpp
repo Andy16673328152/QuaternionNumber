@@ -669,8 +669,50 @@ struct alignas(16) Quaternion{
 		}
 	}
 	MAYBE_CONSTEXPR std::array<T,3> RotateVector(T x,T y,T z)const{
-		T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
-		return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
+		if constexpr(std::is_same<T,float>::value){
+			#ifdef __SSE__
+			__m128 v1=_mm_set_ps(z,y,x,T(0));
+			__m128 rr;
+			rr=_mm_mul_ps(_mm_set_ps(i,k,j,T(0)),_mm_set_ps(y,x,z,T(0)));
+			rr=_mm_sub_ps(rr,_mm_mul_ps(_mm_set_ps(j,i,k,T(0)),_mm_set_ps(x,z,y,T(0))));
+			rr=_mm_mul_ps(rr,_mm_set_ps(T(2),T(2),T(2),T(0)));
+			float g[4];
+			_mm_store_ps(g,rr);
+			v1=_mm_add_ps(v1,_mm_mul_ps(rr,_mm_set_ps(r,r,r,T(0))));
+			v1=_mm_add_ps(v1,_mm_mul_ps(_mm_set_ps(i,k,j,T(0)),_mm_set_ps(g[2],g[1],g[3],T(0))));
+			v1=_mm_sub_ps(v1,_mm_mul_ps(_mm_set_ps(j,i,k,T(0)),_mm_set_ps(g[1],g[3],g[2],T(0))));
+			float res[4];
+			_mm_store_ps(res,v1);
+			return {res[1],res[2],res[3]};
+			#else
+			T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
+			return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
+			#endif
+		}else{
+			if constexpr(std::is_same<T,double>::value){
+				#ifdef __AVX2__
+				__m256d v1=_mm256_set_pd(z,y,x,T(0));
+				__m256d rr;
+				rr=_mm256_mul_pd(_mm256_set_pd(i,k,j,T(0)),_mm256_set_pd(y,x,z,T(0)));
+				rr=_mm256_sub_pd(rr,_mm256_mul_pd(_mm256_set_pd(j,i,k,T(0)),_mm256_set_pd(x,z,y,T(0))));
+				rr=_mm256_mul_pd(rr,_mm256_set_pd(T(2),T(2),T(2),T(0)));
+				double g[4];
+				_mm256_store_pd(g,rr);
+				v1=_mm256_add_pd(v1,_mm256_mul_pd(rr,_mm256_set_pd(r,r,r,T(0))));
+				v1=_mm256_add_pd(v1,_mm256_mul_pd(_mm256_set_pd(i,k,j,T(0)),_mm256_set_pd(g[2],g[1],g[3],T(0))));
+				v1=_mm256_sub_pd(v1,_mm256_mul_pd(_mm256_set_pd(j,i,k,T(0)),_mm256_set_pd(g[1],g[3],g[2],T(0))));
+				double res[4];
+				_mm256_store_pd(res,v1);
+				return {res[1],res[2],res[3]};
+				#else
+				T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
+				return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
+				#endif
+			}else{
+				T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
+				return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
+			}
+		}
 	}
 	MAYBE_CONSTEXPR std::array<T,3> RotateVector(const std::array<T,3> &v)const{
 		return RotateVector(v[0],v[1],v[2]);
