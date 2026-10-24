@@ -19,6 +19,7 @@ QUATERNIONNUMBER IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 #include <vector>
 #include <algorithm>
 #include <type_traits>
+#include <cstddef>
 #include <tuple>
 #include <limits>
 #include <array>
@@ -418,7 +419,7 @@ struct alignas(16) Quaternion{
 	}
 	//(x,y,z),theta->quaternion
 	MAYBE_CONSTEXPR static Quaternion FromAxisAngle(T angle,T x,T y,T z){
-		T semiangle=angle/2.0;
+		T semiangle=angle/T(2.0);
 		T ss=std::sin(semiangle),cs=std::cos(semiangle);
 		if constexpr(std::is_same<T,float>::value){
 			#ifdef __SSE__
@@ -1219,11 +1220,11 @@ MAYBE_CONSTEXPR Quaternion<T> log(const Quaternion<T> &a){
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> log10(const Quaternion<T> &a){
-	return log(a)/std::log(10);
+	return log(a)/std::log(T(10));
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> log2(const Quaternion<T> &a){
-	return log(a)/std::log(2);
+	return log(a)/std::log(T(2));
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> logp(const Quaternion<T> &a,const Quaternion<T> &b){
@@ -1237,7 +1238,7 @@ MAYBE_CONSTEXPR Quaternion<T> exp(const Quaternion<T> &a){
 	}
 	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
-		return Quaternion<T>(std::exp(a.r),0,0,0);
+		return Quaternion<T>(std::exp(a.r),T(0),T(0),T(0));
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
@@ -1409,12 +1410,21 @@ MAYBE_CONSTEXPR T dot(const Quaternion<T> &a,const Quaternion<T> &b){
 	}
 }
 template <typename T>
-Quaternion<T> average(const std::vector<Quaternion<T> > &qs){
+Quaternion<T> average(const std::vector<Quaternion<T> > &qs,bool use_kahan=false){
 	if(qs.empty()){
 		return Quaternion<T>(T(1),T(0),T(0),T(0));
 	}
 	if(qs.size()==1){
 		return qs[0];
+	}
+	if(use_kahan){
+		Quaternion<T> sum=Quaternion<T>::zero(),cmp=Quaternion<T>::zero();
+		for(const auto &q:qs){
+			Quaternion<T> y=q-cmp,t=sum+y;
+			cmp=(t-sum)-y;
+			sum=t;
+		}
+		return sum.normalized();
 	}
 	Quaternion<T> sum=Quaternion<T>::zero(),ref=qs[0];
 	for(const auto &q:qs){
@@ -1665,7 +1675,7 @@ MAYBE_CONSTEXPR Quaternion<T> SquadFromControls(const SquadControl<T> &a,const S
 	if(t<=Constants::eps<T>){
 		return b.q;
 	}
-	if(t>=1-Constants::eps<T>){
+	if(t>=T(1)-Constants::eps<T>){
 		return c.q;
 	}
 	Quaternion<T> p0=slerp(b.q,c.q,t),p1=slerp(a.tangent,d.tangent,t);
@@ -1748,7 +1758,7 @@ MAYBE_CONSTEXPR Quaternion<T> sin(const Quaternion<T> &a){
 	}
 	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
-		return Quaternion<T>(std::sin(a.r),0,0,0);
+		return Quaternion<T>(std::sin(a.r),T(0),T(0),T(0));
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
@@ -1762,13 +1772,13 @@ MAYBE_CONSTEXPR Quaternion<T> sin(const Quaternion<T> &a){
 	_mm_store_ps(das,df);
 	return Quaternion<T>(das[0]+std::sin(a.r)*std::cosh(pa),das[1],das[2],das[3]);
 	#else
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+	Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
 	#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			double rst[4]={0.0,a.i,a.j,a.k};
+			double rst[4]={T(0),a.i,a.j,a.k};
 			__m256d r=_mm256_loadu_pd(&rst[0]);
 			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
 			double cs=std::cos(a.r)*std::sinh(pa);
@@ -1777,11 +1787,11 @@ MAYBE_CONSTEXPR Quaternion<T> sin(const Quaternion<T> &a){
 			_mm256_store_pd(das,df);
 			return Quaternion<T>(das[0]+std::sin(a.r)*std::cosh(pa),das[1],das[2],das[3]);
 			#else
-			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
 			#endif
 		}else{
-			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
 		}
 	}
@@ -1793,12 +1803,12 @@ MAYBE_CONSTEXPR Quaternion<T> cos(const Quaternion<T> &a){
 	}
 	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
-		return Quaternion<T>(std::cos(a.r),0,0,0);
+		return Quaternion<T>(std::cos(a.r),T(0),T(0),T(0));
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
 	#ifdef __SSE__
-	float rst[4]={0.0,a.i,a.j,a.k};
+	float rst[4]={T(0),a.i,a.j,a.k};
 	__m128 r=_mm_load_ps(&rst[0]);
 	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
 	float cs=-std::sin(a.r)*std::sinh(pa);
@@ -1807,7 +1817,7 @@ MAYBE_CONSTEXPR Quaternion<T> cos(const Quaternion<T> &a){
 	_mm_store_ps(das,df);
 	return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
 	#else
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+	Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 	return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
 	#endif
 	}else{
@@ -1822,11 +1832,11 @@ MAYBE_CONSTEXPR Quaternion<T> cos(const Quaternion<T> &a){
 			_mm256_store_pd(das,df);
 			return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
 			#else
-			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
 			#endif
 		}else{
-			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
 		}
 	}
@@ -1843,10 +1853,10 @@ MAYBE_CONSTEXPR Quaternion<T> asin(const Quaternion<T> &a){
 	}
 	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
-		return Quaternion<T>(std::asin(a.r),0,0,0);
+		return Quaternion<T>(std::asin(a.r),T(0),T(0),T(0));
 	}
 	T ipa=T(1)/pa;
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+	Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 	return -u*log(a*u+sqrt(T(1)-a*a));
 }
 template<typename T>
@@ -1856,10 +1866,10 @@ MAYBE_CONSTEXPR Quaternion<T> acos(const Quaternion<T> &a){
 	}
 	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
-		return Quaternion<T>(std::acos(a.r),0,0,0);
+		return Quaternion<T>(std::acos(a.r),T(0),T(0),T(0));
 	}
 	T ipa=T(1)/pa;
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+	Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 	return -u*log(a+u*sqrt(T(1)-a*a));
 }
 template<typename T>
@@ -1869,11 +1879,11 @@ MAYBE_CONSTEXPR Quaternion<T> atan(const Quaternion<T> &a){
 	}
 	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
-		return Quaternion<T>(std::atan(a.r),0,0,0);
+		return Quaternion<T>(std::atan(a.r),T(0),T(0),T(0));
 	}
 	T ipa=T(1)/pa;
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
-	return (u/2.0)*log((u+a)/(u-a));
+	Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
+	return (u/T(2.0))*log((u+a)/(u-a));
 }
 //hyperbolic functions
 template<typename T>
@@ -1883,7 +1893,7 @@ MAYBE_CONSTEXPR Quaternion<T> sinh(const Quaternion<T> &a){
 	}
 	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
-		return Quaternion<T>(std::sinh(a.r),0,0,0);
+		return Quaternion<T>(std::sinh(a.r),T(0),T(0),T(0));
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
@@ -1928,7 +1938,7 @@ MAYBE_CONSTEXPR Quaternion<T> cosh(const Quaternion<T> &a){
 	}
 	T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 	if(pa<Constants::eps<T>){
-		return Quaternion<T>(std::cosh(a.r),0,0,0);
+		return Quaternion<T>(std::cosh(a.r),T(0),T(0),T(0));
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
@@ -1957,11 +1967,11 @@ MAYBE_CONSTEXPR Quaternion<T> cosh(const Quaternion<T> &a){
 			_mm256_store_pd(das,df);
 			return Quaternion<T>(das[0]+std::cosh(a.r)*std::cos(pa),das[1],das[2],das[3]);
 			#else
-			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
 			#endif
 		}else{
-			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
 		}
 	}
@@ -1989,7 +1999,7 @@ MAYBE_CONSTEXPR Quaternion<T> acosh(const Quaternion<T> &a){
 	T w2=a.r*a.r,v2=abs(pure(a));
 	if(std::abs(w2-v2-T(1))<Constants::eps<T>&&v2>Constants::eps<T>){
 		Quaternion<T> sq=sqrt(T(1)-a*a);
-		return log(a+Quaternion<T>(0,1,0,0)*sq);
+		return log(a+Quaternion<T>(T(0),T(1),T(0),T(0))*sq);
 	}
 	return log(a+sqrt(a-T(1))*sqrt(a+T(1)));
 }
@@ -2005,7 +2015,7 @@ MAYBE_CONSTEXPR Quaternion<T> atanh(const Quaternion<T> &a){
 	if(std::abs(w2-v2-T(1))<Constants::eps<T>&&v2>Constants::eps<T>){
 		throw std::domain_error("atanh:input in pathological domain");
 	}
-	return 0.5*log((T(1)+a)/(T(1)-a)); 
+	return T(0.5)*log((T(1)+a)/(T(1)-a)); 
 }
 //string->quaternion
 template<typename T>
@@ -2053,7 +2063,7 @@ MAYBE_CONSTEXPR Quaternion<T> err(const Quaternion<T> &cur,const Quaternion<T> &
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> angular_velocity(const Quaternion<T> &prev,const Quaternion<T> &cur,T dt){
 	Quaternion<T> qd=prev.inverse()*cur;
-	return 2*log(qd)/dt;
+	return T(2.0)*log(qd)/dt;
 }
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> perturb(const Quaternion<T> &q,const Quaternion<T> &delta){
