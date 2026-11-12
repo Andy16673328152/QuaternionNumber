@@ -503,7 +503,7 @@ struct alignas(16) Quaternion{
 				#ifdef __AVX2__
 				if(Config::use_avx2){
 					__m256d ve=_mm256_set_pd(z,y,x,0);
-					__m256d img=_mm256_mul_pd(ve,_mm_set_ps(ss,ss,ss,ss));
+					__m256d img=_mm256_mul_pd(ve,_mm256_set_pd(ss,ss,ss,ss));
 					double res[4];
 					_mm256_store_pd(res,img);
 					Quaternion q(cs+res[0],res[1],res[2],res[3]);
