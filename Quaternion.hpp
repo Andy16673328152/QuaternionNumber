@@ -65,6 +65,9 @@ namespace Constants{
 	template<typename T>
 	inline constexpr T eps=T(1e-10);
 }
+namespace Config{
+	inline bool use_sse=1,use_avx2=1;
+}
 template <typename T>
 T stot(const std::string &s){
 	static_assert(std::is_same<T,float>::value||std::is_same<T,double>::value||std::is_same<T,long double>::value,"T must be 'float','double' or 'long double',not 'int'");
@@ -217,15 +220,22 @@ struct alignas(16) Quaternion{
 			T ial=T(1)/al;
 			if constexpr(std::is_same<T,float>::value){
 				#ifdef __SSE__
-				__m128 vq=_mm_load_ps(&(this->r));
-				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
-				__m128 rr=_mm_mul_ps(vq,fourxial);
-				float rt[4];
-				_mm_store_ps(rt,rr);
-				r=rt[0];
-				i=rt[1];
-				j=rt[2];
-				k=rt[3];
+				if(Config::use_sse){
+					__m128 vq=_mm_load_ps(&(this->r));
+					__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+					__m128 rr=_mm_mul_ps(vq,fourxial);
+					float rt[4];
+					_mm_store_ps(rt,rr);
+					r=rt[0];
+					i=rt[1];
+					j=rt[2];
+					k=rt[3];
+				}else{
+					r*=ial;
+					i*=ial;
+					j*=ial;
+					k*=ial;
+				}
 				#else
 				r*=ial;
 				i*=ial;
@@ -235,15 +245,23 @@ struct alignas(16) Quaternion{
 			}else{
 				if constexpr(std::is_same<T,double>::value){
 					#ifdef __AVX2__
-					__m256d vq=_mm256_load_pd(&(this->r));
-					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
-					__m256d rr=_mm256_mul_pd(vq,fourxial);
-					double rt[4];
-					_mm256_store_pd(rt,rr);
-					r=rt[0];
-					i=rt[1];
-					j=rt[2];
-					k=rt[3];
+					if(Config::use_avx2){
+						__m256d vq=_mm256_loadu_pd(&(this->r));
+						__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+						__m256d rr=_mm256_mul_pd(vq,fourxial);
+						double rt[4];
+						_mm256_store_pd(rt,rr);
+						r=rt[0];
+						i=rt[1];
+						j=rt[2];
+						k=rt[3];
+					}else{
+						r*=ial;
+						i*=ial;
+						j*=ial;
+						k*=ial;
+					}
+					
 					#else
 					r*=ial;
 					i*=ial;
@@ -266,24 +284,34 @@ struct alignas(16) Quaternion{
 			T ial=T(1)/al;
 			if constexpr(std::is_same<T,float>::value){
 				#ifdef __SSE__
-				__m128 vq=_mm_load_ps(&(this->r));
-				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
-				__m128 rr=_mm_mul_ps(vq,fourxial);
-				float rt[4];
-				_mm_store_ps(rt,rr);
-				return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				if(Config::use_sse){
+					__m128 vq=_mm_load_ps(&(this->r));
+					__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+					__m128 rr=_mm_mul_ps(vq,fourxial);
+					float rt[4];
+					_mm_store_ps(rt,rr);
+					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				}else{
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);
+				}
+				
 				#else
 				return Quaternion(r*ial,i*ial,j*ial,k*ial);
 				#endif
 			}else{
 				if constexpr(std::is_same<T,double>::value){
 					#ifdef __AVX2__
-					__m256d vq=_mm256_load_pd(&(this->r));
-					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
-					__m256d rr=_mm256_mul_pd(vq,fourxial);
-					double rt[4];
-					_mm256_store_pd(rt,rr);
-					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					if(Config::use_avx2){
+						__m256d vq=_mm256_loadu_pd(&(this->r));
+						__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+						__m256d rr=_mm256_mul_pd(vq,fourxial);
+						double rt[4];
+						_mm256_store_pd(rt,rr);
+						return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					}else{
+						return Quaternion(r*ial,i*ial,j*ial,k*ial);
+					}
+					
 					#else
 					return Quaternion(r*ial,i*ial,j*ial,k*ial);
 					#endif
@@ -300,24 +328,32 @@ struct alignas(16) Quaternion{
 			T ial=T(1)/al;
 			if constexpr(std::is_same<T,float>::value){
 				#ifdef __SSE__
-				__m128 vq=_mm_load_ps(&(this->r));
-				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
-				__m128 r=_mm_mul_ps(vq,fourxial);
-				float rt[4];
-				_mm_store_ps(rt,r);
-				return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				if(Config::use_sse){
+					__m128 vq=_mm_load_ps(&(this->r));
+					__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+					__m128 r=_mm_mul_ps(vq,fourxial);
+					float rt[4];
+					_mm_store_ps(rt,r);
+					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				}else{
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);
+				}
 				#else
 				return Quaternion(r*ial,i*ial,j*ial,k*ial);
 				#endif
 			}else{
 				if constexpr(std::is_same<T,double>::value){
 					#ifdef __AVX2__
-					__m256d vq=_mm256_load_pd(&(this->r));
-					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
-					__m256d r=_mm256_mul_pd(vq,fourxial);
-					double rt[4];
-					_mm256_store_pd(rt,r);
-					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					if(Config::use_avx2){
+						__m256d vq=_mm256_loadu_pd(&(this->r));
+						__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+						__m256d r=_mm256_mul_pd(vq,fourxial);
+						double rt[4];
+						_mm256_store_pd(rt,r);
+						return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					}else{
+						return Quaternion(r*ial,i*ial,j*ial,k*ial);
+					}
 					#else
 					return Quaternion(r*ial,i*ial,j*ial,k*ial);
 					#endif
@@ -335,15 +371,22 @@ struct alignas(16) Quaternion{
 			T ial=T(1)/std::sqrt(al);
 			if constexpr(std::is_same<T,float>::value){
 				#ifdef __SSE__
-				__m128 vq=_mm_load_ps(&(this->r));
-				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
-				__m128 rr=_mm_mul_ps(vq,fourxial);
-				float rt[4];
-				_mm_store_ps(rt,rr);
-				r=rt[0];
-				i=rt[1];
-				j=rt[2];
-				k=rt[3];
+				if(Config::use_sse){
+					__m128 vq=_mm_load_ps(&(this->r));
+					__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+					__m128 rr=_mm_mul_ps(vq,fourxial);
+					float rt[4];
+					_mm_store_ps(rt,rr);
+					r=rt[0];
+					i=rt[1];
+					j=rt[2];
+					k=rt[3];
+				}else{
+					r*=ial;
+					i*=ial;
+					j*=ial;
+					k*=ial;
+				}
 				#else
 				r*=ial;
 				i*=ial;
@@ -353,15 +396,22 @@ struct alignas(16) Quaternion{
 			}else{
 				if constexpr(std::is_same<T,double>::value){
 					#ifdef __AVX2__
-					__m256d vq=_mm256_load_pd(&(this->r));
-					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
-					__m256d rr=_mm256_mul_pd(vq,fourxial);
-					double rt[4];
-					_mm256_store_pd(rt,rr);
-					r=rt[0];
-					i=rt[1];
-					j=rt[2];
-					k=rt[3];
+					if(Config::use_avx2){
+						__m256d vq=_mm256_loadu_pd(&(this->r));
+						__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+						__m256d rr=_mm256_mul_pd(vq,fourxial);
+						double rt[4];
+						_mm256_store_pd(rt,rr);
+						r=rt[0];
+						i=rt[1];
+						j=rt[2];
+						k=rt[3];
+					}else{
+						r*=ial;
+						i*=ial;
+						j*=ial;
+						k*=ial;
+					}
 					#else
 					r*=ial;
 					i*=ial;
@@ -384,24 +434,34 @@ struct alignas(16) Quaternion{
 			T ial=T(1)/std::sqrt(al);
 			if constexpr(std::is_same<T,float>::value){
 				#ifdef __SSE__
-				__m128 vq=_mm_load_ps(&(this->r));
-				__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
-				__m128 rr=_mm_mul_ps(vq,fourxial);
-				float rt[4];
-				_mm_store_ps(rt,rr);
-				return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				if(Config::use_sse){
+					__m128 vq=_mm_load_ps(&(this->r));
+					__m128 fourxial=_mm_set_ps(ial,ial,ial,ial);
+					__m128 rr=_mm_mul_ps(vq,fourxial);
+					float rt[4];
+					_mm_store_ps(rt,rr);
+					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+				}else{
+					return Quaternion(r*ial,i*ial,j*ial,k*ial);
+				}
+				
 				#else
 				return Quaternion(r*ial,i*ial,j*ial,k*ial);
 				#endif
 			}else{
 				if constexpr(std::is_same<T,double>::value){
 					#ifdef __AVX2__
-					__m256d vq=_mm256_load_pd(&(this->r));
-					__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
-					__m256d rr=_mm256_mul_pd(vq,fourxial);
-					double rt[4];
-					_mm256_store_pd(rt,rr);
-					return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					if(Config::use_avx2){
+						__m256d vq=_mm256_loadu_pd(&(this->r));
+						__m256d fourxial=_mm256_set_pd(ial,ial,ial,ial);
+						__m256d rr=_mm256_mul_pd(vq,fourxial);
+						double rt[4];
+						_mm256_store_pd(rt,rr);
+						return Quaternion(rt[0],rt[1],rt[2],rt[3]);
+					}else{
+						return Quaternion(r*ial,i*ial,j*ial,k*ial);
+					}
+					
 					#else
 					return Quaternion(r*ial,i*ial,j*ial,k*ial);
 					#endif
@@ -423,12 +483,17 @@ struct alignas(16) Quaternion{
 		T ss=std::sin(semiangle),cs=std::cos(semiangle);
 		if constexpr(std::is_same<T,float>::value){
 			#ifdef __SSE__
-			__m128 ve=_mm_set_ps(z,y,x,0);
-			__m128 img=_mm_mul_ps(ve,_mm_set_ps(ss,ss,ss,ss));
-			float res[4];
-			_mm_store_ps(res,img);
-			Quaternion q(cs+res[0],res[1],res[2],res[3]);
-			return q.normalized();
+			if(Config::use_sse){
+				__m128 ve=_mm_set_ps(z,y,x,0);
+				__m128 img=_mm_mul_ps(ve,_mm_set_ps(ss,ss,ss,ss));
+				float res[4];
+				_mm_store_ps(res,img);
+				Quaternion q(cs+res[0],res[1],res[2],res[3]);
+				return q.normalized();
+			}else{
+				Quaternion q(cs,x*ss,y*ss,z*ss);
+				return q.normalized();
+			}
 			#else
 			Quaternion q(cs,x*ss,y*ss,z*ss);
 			return q.normalized();
@@ -436,12 +501,17 @@ struct alignas(16) Quaternion{
 		}else{
 			if constexpr(std::is_same<T,double>::value){
 				#ifdef __AVX2__
-				__m256d ve=_mm256_set_pd(z,y,x,0);
-				__m256d img=_mm256_mul_pd(ve,_mm_set_ps(ss,ss,ss,ss));
-				double res[4];
-				_mm256_store_pd(res,img);
-				Quaternion q(cs+res[0],res[1],res[2],res[3]);
-				return q.normalized();
+				if(Config::use_avx2){
+					__m256d ve=_mm256_set_pd(z,y,x,0);
+					__m256d img=_mm256_mul_pd(ve,_mm_set_ps(ss,ss,ss,ss));
+					double res[4];
+					_mm256_store_pd(res,img);
+					Quaternion q(cs+res[0],res[1],res[2],res[3]);
+					return q.normalized();
+				}else{
+					Quaternion q(cs,x*ss,y*ss,z*ss);
+					return q.normalized();
+				}
 				#else
 				Quaternion q(cs,x*ss,y*ss,z*ss);
 				return q.normalized();
@@ -672,19 +742,25 @@ struct alignas(16) Quaternion{
 	MAYBE_CONSTEXPR std::array<T,3> RotateVector(T x,T y,T z)const{
 		if constexpr(std::is_same<T,float>::value){
 			#ifdef __SSE__
-			__m128 v1=_mm_set_ps(z,y,x,T(0));
-			__m128 rr;
-			rr=_mm_mul_ps(_mm_set_ps(i,k,j,T(0)),_mm_set_ps(y,x,z,T(0)));
-			rr=_mm_sub_ps(rr,_mm_mul_ps(_mm_set_ps(j,i,k,T(0)),_mm_set_ps(x,z,y,T(0))));
-			rr=_mm_mul_ps(rr,_mm_set_ps(T(2),T(2),T(2),T(0)));
-			float g[4];
-			_mm_store_ps(g,rr);
-			v1=_mm_add_ps(v1,_mm_mul_ps(rr,_mm_set_ps(r,r,r,T(0))));
-			v1=_mm_add_ps(v1,_mm_mul_ps(_mm_set_ps(i,k,j,T(0)),_mm_set_ps(g[2],g[1],g[3],T(0))));
-			v1=_mm_sub_ps(v1,_mm_mul_ps(_mm_set_ps(j,i,k,T(0)),_mm_set_ps(g[1],g[3],g[2],T(0))));
-			float res[4];
-			_mm_store_ps(res,v1);
-			return {res[1],res[2],res[3]};
+			if(Config::use_sse){
+				__m128 v1=_mm_set_ps(z,y,x,T(0));
+				__m128 rr;
+				rr=_mm_mul_ps(_mm_set_ps(i,k,j,T(0)),_mm_set_ps(y,x,z,T(0)));
+				rr=_mm_sub_ps(rr,_mm_mul_ps(_mm_set_ps(j,i,k,T(0)),_mm_set_ps(x,z,y,T(0))));
+				rr=_mm_mul_ps(rr,_mm_set_ps(T(2),T(2),T(2),T(0)));
+				float g[4];
+				_mm_store_ps(g,rr);
+				v1=_mm_add_ps(v1,_mm_mul_ps(rr,_mm_set_ps(r,r,r,T(0))));
+				v1=_mm_add_ps(v1,_mm_mul_ps(_mm_set_ps(i,k,j,T(0)),_mm_set_ps(g[2],g[1],g[3],T(0))));
+				v1=_mm_sub_ps(v1,_mm_mul_ps(_mm_set_ps(j,i,k,T(0)),_mm_set_ps(g[1],g[3],g[2],T(0))));
+				float res[4];
+				_mm_store_ps(res,v1);
+				return {res[1],res[2],res[3]};
+			}else{
+				T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
+				return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
+			}
+			
 			#else
 			T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
 			return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
@@ -692,19 +768,24 @@ struct alignas(16) Quaternion{
 		}else{
 			if constexpr(std::is_same<T,double>::value){
 				#ifdef __AVX2__
-				__m256d v1=_mm256_set_pd(z,y,x,T(0));
-				__m256d rr;
-				rr=_mm256_mul_pd(_mm256_set_pd(i,k,j,T(0)),_mm256_set_pd(y,x,z,T(0)));
-				rr=_mm256_sub_pd(rr,_mm256_mul_pd(_mm256_set_pd(j,i,k,T(0)),_mm256_set_pd(x,z,y,T(0))));
-				rr=_mm256_mul_pd(rr,_mm256_set_pd(T(2),T(2),T(2),T(0)));
-				double g[4];
-				_mm256_store_pd(g,rr);
-				v1=_mm256_add_pd(v1,_mm256_mul_pd(rr,_mm256_set_pd(r,r,r,T(0))));
-				v1=_mm256_add_pd(v1,_mm256_mul_pd(_mm256_set_pd(i,k,j,T(0)),_mm256_set_pd(g[2],g[1],g[3],T(0))));
-				v1=_mm256_sub_pd(v1,_mm256_mul_pd(_mm256_set_pd(j,i,k,T(0)),_mm256_set_pd(g[1],g[3],g[2],T(0))));
-				double res[4];
-				_mm256_store_pd(res,v1);
-				return {res[1],res[2],res[3]};
+				if(Config::use_avx2){
+					__m256d v1=_mm256_set_pd(z,y,x,T(0));
+					__m256d rr;
+					rr=_mm256_mul_pd(_mm256_set_pd(i,k,j,T(0)),_mm256_set_pd(y,x,z,T(0)));
+					rr=_mm256_sub_pd(rr,_mm256_mul_pd(_mm256_set_pd(j,i,k,T(0)),_mm256_set_pd(x,z,y,T(0))));
+					rr=_mm256_mul_pd(rr,_mm256_set_pd(T(2),T(2),T(2),T(0)));
+					double g[4];
+					_mm256_store_pd(g,rr);
+					v1=_mm256_add_pd(v1,_mm256_mul_pd(rr,_mm256_set_pd(r,r,r,T(0))));
+					v1=_mm256_add_pd(v1,_mm256_mul_pd(_mm256_set_pd(i,k,j,T(0)),_mm256_set_pd(g[2],g[1],g[3],T(0))));
+					v1=_mm256_sub_pd(v1,_mm256_mul_pd(_mm256_set_pd(j,i,k,T(0)),_mm256_set_pd(g[1],g[3],g[2],T(0))));
+					double res[4];
+					_mm256_store_pd(res,v1);
+					return {res[1],res[2],res[3]};
+				}else{
+					T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
+					return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
+				}
 				#else
 				T rx=2*(j*z-k*y),ry=2*(k*x-i*z),rz=2*(i*y-j*x);
 				return {x+r*rx+(j*rz-k*ry),y+r*ry+(k*rx-i*rz),z+r*rz+(i*ry-j*rx)};
@@ -920,22 +1001,32 @@ template<typename T>
 MAYBE_CONSTEXPR T abs(const Quaternion<T> &a){
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		__m128 va=_mm_load_ps(&a.r);
-		va=_mm_mul_ps(va,va);
-		float res[4];
-		_mm_store_ps(res,va);
-		return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+		if(Config::use_sse){
+			__m128 va=_mm_load_ps(&a.r);
+			va=_mm_mul_ps(va,va);
+			float res[4];
+			_mm_store_ps(res,va);
+			return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+		}else{
+			return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
+		}
+		
 		#else
 		return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
 		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_loadu_pd(&a.r);
-			va=_mm256_mul_pd(va,va);
-			double res[4];
-			_mm256_store_pd(res,va);
-			return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+			if(Config::use_avx2){
+				__m256d va=_mm256_loadu_pd(&a.r);
+				va=_mm256_mul_pd(va,va);
+				double res[4];
+				_mm256_store_pd(res,va);
+				return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+			}else{
+				return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
+			}
+			
 			#else
 			return std::sqrt(a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k);
 			#endif
@@ -948,22 +1039,32 @@ template<typename T>
 MAYBE_CONSTEXPR T norm(const Quaternion<T> &a){
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		__m128 va=_mm_load_ps(&a.r);
-		va=_mm_mul_ps(va,va);
-		float res[4];
-		_mm_store_ps(res,va);
-		return res[0]+res[1]+res[2]+res[3];
+		if(Config::use_sse){
+			__m128 va=_mm_load_ps(&a.r);
+			va=_mm_mul_ps(va,va);
+			float res[4];
+			_mm_store_ps(res,va);
+			return res[0]+res[1]+res[2]+res[3];
+		}else{
+			return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
+		}
+		
 		#else
 		return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
 		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_loadu_pd(&a.r);
-			va=_mm256_mul_pd(va,va);
-			double res[4];
-			_mm256_store_pd(res,va);
-			return res[0]+res[1]+res[2]+res[3];
+			if(Config::use_avx2){
+				__m256d va=_mm256_loadu_pd(&a.r);
+				va=_mm256_mul_pd(va,va);
+				double res[4];
+				_mm256_store_pd(res,va);
+				return res[0]+res[1]+res[2]+res[3];
+			}else{
+				return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
+			}
+			
 			#else
 			return a.r*a.r+a.i*a.i+a.j*a.j+a.k*a.k;
 			#endif
@@ -983,25 +1084,35 @@ MAYBE_CONSTEXPR Quaternion<T> operator /(T a,const Quaternion<T> &b){
 template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> operator +(const Quaternion<T> &a,const Quaternion<T> &b){
 	if constexpr(std::is_same<T,float>::value){
-	#ifdef __SSE__
-	__m128 va=_mm_load_ps(&a.r);
-	__m128 vb=_mm_load_ps(&b.r);
-	__m128 r=_mm_add_ps(va,vb);
-	float rs[4];
-	_mm_store_ps(rs,r);
-	return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
-	#else
-	return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
-	#endif
+		#ifdef __SSE__
+		if(Config::use_sse){
+			__m128 va=_mm_load_ps(&a.r);
+			__m128 vb=_mm_load_ps(&b.r);
+			__m128 r=_mm_add_ps(va,vb);
+			float rs[4];
+			_mm_store_ps(rs,r);
+			return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+		}else{
+			return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
+		}
+		
+		#else
+		return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
+		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_loadu_pd(&a.r);
-			__m256d vb=_mm256_loadu_pd(&b.r);
-			__m256d r=_mm256_add_pd(va,vb);
-			double rs[4];
-			_mm256_store_pd(rs,r);
-			return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			if(Config::use_avx2){
+				__m256d va=_mm256_loadu_pd(&a.r);
+				__m256d vb=_mm256_loadu_pd(&b.r);
+				__m256d r=_mm256_add_pd(va,vb);
+				double rs[4];
+				_mm256_store_pd(rs,r);
+				return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			}else{
+				return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
+			}
+			
 			#else
 			return Quaternion<T>(a.r+b.r,a.i+b.i,a.j+b.j,a.k+b.k);
 			#endif
@@ -1014,24 +1125,32 @@ template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> operator -(const Quaternion<T> &a,const Quaternion<T> &b){
 	if constexpr(std::is_same<T,float>::value){
 	#ifdef __SSE__
-	__m128 va=_mm_load_ps(&a.r);
-	__m128 vb=_mm_load_ps(&b.r);
-	__m128 r=_mm_sub_ps(va,vb);
-	float rs[4];
-	_mm_store_ps(rs,r);
-	return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+	if(Config::use_sse){
+		__m128 va=_mm_load_ps(&a.r);
+		__m128 vb=_mm_load_ps(&b.r);
+		__m128 r=_mm_sub_ps(va,vb);
+		float rs[4];
+		_mm_store_ps(rs,r);
+		return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+	}else{
+		return Quaternion<T>(a.r-b.r,a.i-b.i,a.j-b.j,a.k-b.k);
+	}
 	#else
 	return Quaternion<T>(a.r-b.r,a.i-b.i,a.j-b.j,a.k-b.k);
 	#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_loadu_pd(&a.r);
-			__m256d vb=_mm256_loadu_pd(&b.r);
-			__m256d r=_mm256_sub_pd(va,vb);
-			double rs[4];
-			_mm256_store_pd(rs,r);
-			return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			if(Config::use_avx2){
+				__m256d va=_mm256_loadu_pd(&a.r);
+				__m256d vb=_mm256_loadu_pd(&b.r);
+				__m256d r=_mm256_sub_pd(va,vb);
+				double rs[4];
+				_mm256_store_pd(rs,r);
+				return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			}else{
+				return Quaternion<T>(a.r-b.r,a.i-b.i,a.j-b.j,a.k-b.k);
+			}
 			#else
 			return Quaternion<T>(a.r-b.r,a.i-b.i,a.j-b.j,a.k-b.k);
 			#endif
@@ -1044,42 +1163,50 @@ template<typename T>
 MAYBE_CONSTEXPR Quaternion<T> operator *(const Quaternion<T> &a,const Quaternion<T> &b){
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		__m128 va=_mm_load_ps(&a.r);
-		__m128 vb=_mm_load_ps(&b.r);
-		float tp[4];
-		_mm_store_ps(tp,vb);
-		__m128 a0=_mm_shuffle_ps(va,va,_MM_SHUFFLE(0,0,0,0));
-		__m128 a1=_mm_shuffle_ps(va,va,_MM_SHUFFLE(1,1,1,1));
-		__m128 a2=_mm_shuffle_ps(va,va,_MM_SHUFFLE(2,2,2,2));
-		__m128 a3=_mm_shuffle_ps(va,va,_MM_SHUFFLE(3,3,3,3));
-		__m128 r=_mm_mul_ps(a0,_mm_set_ps(tp[3],tp[2],tp[1],tp[0]));
-		r=_mm_add_ps(r,_mm_mul_ps(a1,_mm_set_ps(tp[2],-tp[3],tp[0],-tp[1])));
-		r=_mm_add_ps(r,_mm_mul_ps(a2,_mm_set_ps(-tp[1],tp[0],tp[3],-tp[2])));
-		r=_mm_add_ps(r,_mm_mul_ps(a3,_mm_set_ps(tp[0],tp[1],-tp[2],-tp[3])));
-		float rs[4];
-		_mm_store_ps(rs,r);
-		return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+		if(Config::use_sse){
+			__m128 va=_mm_load_ps(&a.r);
+			__m128 vb=_mm_load_ps(&b.r);
+			float tp[4];
+			_mm_store_ps(tp,vb);
+			__m128 a0=_mm_shuffle_ps(va,va,_MM_SHUFFLE(0,0,0,0));
+			__m128 a1=_mm_shuffle_ps(va,va,_MM_SHUFFLE(1,1,1,1));
+			__m128 a2=_mm_shuffle_ps(va,va,_MM_SHUFFLE(2,2,2,2));
+			__m128 a3=_mm_shuffle_ps(va,va,_MM_SHUFFLE(3,3,3,3));
+			__m128 r=_mm_mul_ps(a0,_mm_set_ps(tp[3],tp[2],tp[1],tp[0]));
+			r=_mm_add_ps(r,_mm_mul_ps(a1,_mm_set_ps(tp[2],-tp[3],tp[0],-tp[1])));
+			r=_mm_add_ps(r,_mm_mul_ps(a2,_mm_set_ps(-tp[1],tp[0],tp[3],-tp[2])));
+			r=_mm_add_ps(r,_mm_mul_ps(a3,_mm_set_ps(tp[0],tp[1],-tp[2],-tp[3])));
+			float rs[4];
+			_mm_store_ps(rs,r);
+			return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+		}else{
+			return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
+		}
 		#else
 		return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
 		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_loadu_pd(&a.r);
-			__m256d vb=_mm256_loadu_pd(&b.r);
-			double tp[4];
-			_mm256_store_pd(tp,vb);
-			__m256d a0=_mm256_permute4x64_pd(va,_MM_SHUFFLE(0,0,0,0));
-			__m256d a1=_mm256_permute4x64_pd(va,_MM_SHUFFLE(1,1,1,1));
-			__m256d a2=_mm256_permute4x64_pd(va,_MM_SHUFFLE(2,2,2,2));
-			__m256d a3=_mm256_permute4x64_pd(va,_MM_SHUFFLE(3,3,3,3));
-			__m256d r=_mm256_mul_pd(a0,vb);
-			r=_mm256_add_pd(r,_mm256_mul_pd(a1,_mm256_set_pd(tp[2],-tp[3],tp[0],-tp[1])));
-			r=_mm256_add_pd(r,_mm256_mul_pd(a2,_mm256_set_pd(-tp[1],tp[0],tp[3],-tp[2])));
-			r=_mm256_add_pd(r,_mm256_mul_pd(a3,_mm256_set_pd(tp[0],tp[1],-tp[2],-tp[3])));
-			double rs[4];
-			_mm256_store_pd(rs,r);
-			return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			if(Config::use_avx2){
+				__m256d va=_mm256_loadu_pd(&a.r);
+				__m256d vb=_mm256_loadu_pd(&b.r);
+				double tp[4];
+				_mm256_store_pd(tp,vb);
+				__m256d a0=_mm256_permute4x64_pd(va,_MM_SHUFFLE(0,0,0,0));
+				__m256d a1=_mm256_permute4x64_pd(va,_MM_SHUFFLE(1,1,1,1));
+				__m256d a2=_mm256_permute4x64_pd(va,_MM_SHUFFLE(2,2,2,2));
+				__m256d a3=_mm256_permute4x64_pd(va,_MM_SHUFFLE(3,3,3,3));
+				__m256d r=_mm256_mul_pd(a0,vb);
+				r=_mm256_add_pd(r,_mm256_mul_pd(a1,_mm256_set_pd(tp[2],-tp[3],tp[0],-tp[1])));
+				r=_mm256_add_pd(r,_mm256_mul_pd(a2,_mm256_set_pd(-tp[1],tp[0],tp[3],-tp[2])));
+				r=_mm256_add_pd(r,_mm256_mul_pd(a3,_mm256_set_pd(tp[0],tp[1],-tp[2],-tp[3])));
+				double rs[4];
+				_mm256_store_pd(rs,r);
+				return Quaternion<T>(rs[0],rs[1],rs[2],rs[3]);
+			}else{
+				return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
+			}
 			#else
 			return Quaternion<T>(a.r*b.r-a.i*b.i-a.j*b.j-a.k*b.k,a.r*b.i+a.i*b.r+a.j*b.k-a.k*b.j,a.r*b.j+a.j*b.r+a.k*b.i-a.i*b.k,a.r*b.k+a.k*b.r+a.i*b.j-a.j*b.i);
 			#endif
@@ -1185,14 +1312,19 @@ MAYBE_CONSTEXPR Quaternion<T> log(const Quaternion<T> &a){
 	T img=T(1)/mg;
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		float rst[4]={0.0,a.i,a.j,a.k};
-		__m128 r=_mm_load_ps(&rst[0]);
-		r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
-		float acc=std::acos(a.r*img);
-		__m128 gh=_mm_mul_ps(r,_mm_set_ps(acc,acc,acc,acc));
-		float das[4];
-		_mm_store_ps(das,gh);
-		return Quaternion<T>(das[0]+std::log(mg),das[1],das[2],das[3]);
+		if(Config::use_sse){
+			float rst[4]={0.0,a.i,a.j,a.k};
+			__m128 r=_mm_load_ps(&rst[0]);
+			r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+			float acc=std::acos(a.r*img);
+			__m128 gh=_mm_mul_ps(r,_mm_set_ps(acc,acc,acc,acc));
+			float das[4];
+			_mm_store_ps(das,gh);
+			return Quaternion<T>(das[0]+std::log(mg),das[1],das[2],das[3]);
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::log(mg)+u*std::acos(a.r*img);
+		}
 		#else
 		Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 		return std::log(mg)+u*std::acos(a.r*img);
@@ -1200,14 +1332,19 @@ MAYBE_CONSTEXPR Quaternion<T> log(const Quaternion<T> &a){
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			double rst[4]={0.0,a.i,a.j,a.k};
-			__m256d r=_mm256_loadu_pd(&rst[0]);
-			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
-			double acc=std::acos(a.r*img);
-			__m256d gh=_mm256_mul_pd(r,_mm256_set_pd(acc,acc,acc,acc));
-			double das[4];
-			_mm256_store_pd(das,gh);
-			return Quaternion<T>(das[0]+std::log(mg),das[1],das[2],das[3]);
+			if(Config::use_avx2){
+				double rst[4]={0.0,a.i,a.j,a.k};
+				__m256d r=_mm256_loadu_pd(&rst[0]);
+				r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+				double acc=std::acos(a.r*img);
+				__m256d gh=_mm256_mul_pd(r,_mm256_set_pd(acc,acc,acc,acc));
+				double das[4];
+				_mm256_store_pd(das,gh);
+				return Quaternion<T>(das[0]+std::log(mg),das[1],das[2],das[3]);
+			}else{
+				Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+				return std::log(mg)+u*std::acos(a.r*img);
+			}
 			#else
 			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::log(mg)+u*std::acos(a.r*img);
@@ -1243,20 +1380,26 @@ MAYBE_CONSTEXPR Quaternion<T> exp(const Quaternion<T> &a){
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		float rst[4]={0.0,a.i,a.j,a.k};
-		__m128 r=_mm_load_ps(&rst[0]);
-		r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
-		float cpa=std::cos(pa),spa=std::sin(pa);
-		__m128 df=_mm_mul_ps(r,_mm_set_ps(spa,spa,spa,spa));
-		float ds[4];
-		_mm_store_ps(ds,df);
-		ds[0]=cpa;
-		__m128 sec=_mm_load_ps(&ds[0]);
-		float exa=std::exp(a.r);
-		sec=_mm_mul_ps(sec,_mm_set_ps(exa,exa,exa,exa));
-		float das[4];
-		_mm_store_ps(das,sec);
-		return Quaternion<T>(das[0],das[1],das[2],das[3]);
+		if(Config::use_sse){
+			float rst[4]={0.0,a.i,a.j,a.k};
+			__m128 r=_mm_load_ps(&rst[0]);
+			r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+			float cpa=std::cos(pa),spa=std::sin(pa);
+			__m128 df=_mm_mul_ps(r,_mm_set_ps(spa,spa,spa,spa));
+			float ds[4];
+			_mm_store_ps(ds,df);
+			ds[0]=cpa;
+			__m128 sec=_mm_load_ps(&ds[0]);
+			float exa=std::exp(a.r);
+			sec=_mm_mul_ps(sec,_mm_set_ps(exa,exa,exa,exa));
+			float das[4];
+			_mm_store_ps(das,sec);
+			return Quaternion<T>(das[0],das[1],das[2],das[3]);
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
+		}
+		
 		#else
 		Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 		return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
@@ -1264,20 +1407,25 @@ MAYBE_CONSTEXPR Quaternion<T> exp(const Quaternion<T> &a){
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			double rst[4]={0.0,a.i,a.j,a.k};
-			__m256d r=_mm256_loadu_pd(&rst[0]);
-			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
-			double cpa=std::cos(pa),spa=std::sin(pa);
-			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(spa,spa,spa,spa));
-			double ds[4];
-			_mm256_store_pd(ds,df);
-			ds[0]=cpa;
-			__m256d sec=_mm256_load_pd(&ds[0]);
-			double exa=std::exp(a.r);
-			sec=_mm256_mul_pd(sec,_mm256_set_pd(exa,exa,exa,exa));
-			double das[4];
-			_mm256_store_pd(das,sec);
-			return Quaternion<T>(das[0],das[1],das[2],das[3]);
+			if(Config::use_avx2){
+				double rst[4]={0.0,a.i,a.j,a.k};
+				__m256d r=_mm256_loadu_pd(&rst[0]);
+				r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+				double cpa=std::cos(pa),spa=std::sin(pa);
+				__m256d df=_mm256_mul_pd(r,_mm256_set_pd(spa,spa,spa,spa));
+				double ds[4];
+				_mm256_store_pd(ds,df);
+				ds[0]=cpa;
+				__m256d sec=_mm256_loadu_pd(&ds[0]);
+				double exa=std::exp(a.r);
+				sec=_mm256_mul_pd(sec,_mm256_set_pd(exa,exa,exa,exa));
+				double das[4];
+				_mm256_store_pd(das,sec);
+				return Quaternion<T>(das[0],das[1],das[2],das[3]);
+			}else{
+				Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+				return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
+			}
 			#else
 			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::exp(a.r)*(std::cos(pa)+u*std::sin(pa));
@@ -1343,12 +1491,17 @@ template <typename T>
 MAYBE_CONSTEXPR T euclidean_distance(const Quaternion<T> &a,const Quaternion<T> &b){
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		__m128 va=_mm_load_ps(&a.r),vb=_mm_load_ps(&b.r);
-		__m128 vd=_mm_sub_ps(va,vb);
-		vd=_mm_mul_ps(vd,vd);
-		float res[4];
-		_mm_store_ps(res,vd);
-		return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+		if(Config::use_sse){
+			__m128 va=_mm_load_ps(&a.r),vb=_mm_load_ps(&b.r);
+			__m128 vd=_mm_sub_ps(va,vb);
+			vd=_mm_mul_ps(vd,vd);
+			float res[4];
+			_mm_store_ps(res,vd);
+			return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+		}else{
+			Quaternion<T> d=a-b;
+			return abs(d);
+		}
 		#else
 		Quaternion<T> d=a-b;
 		return abs(d);
@@ -1356,12 +1509,17 @@ MAYBE_CONSTEXPR T euclidean_distance(const Quaternion<T> &a,const Quaternion<T> 
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_loadu_pd(&a.r),vb=_mm256_loadu_pd(&b.r);
-			__m256d vd=_mm256_sub_pd(va,vb);
-			vd=_mm256_mul_pd(vd,vd);
-			double res[4];
-			_mm256_store_pd(res,vd);
-			return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+			if(Config::use_avx2){
+				__m256d va=_mm256_loadu_pd(&a.r),vb=_mm256_loadu_pd(&b.r);
+				__m256d vd=_mm256_sub_pd(va,vb);
+				vd=_mm256_mul_pd(vd,vd);
+				double res[4];
+				_mm256_store_pd(res,vd);
+				return std::sqrt(res[0]+res[1]+res[2]+res[3]);
+			}else{
+				Quaternion<T> d=a-b;
+				return abs(d);
+			}
 			#else
 			Quaternion<T> d=a-b;
 			return abs(d);
@@ -1383,24 +1541,33 @@ template<typename T>
 MAYBE_CONSTEXPR T dot(const Quaternion<T> &a,const Quaternion<T> &b){
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		__m128 va=_mm_load_ps(&a.r);
-		__m128 vb=_mm_load_ps(&b.r);
-		va=_mm_mul_ps(va,vb);
-		float res[4];
-		_mm_store_ps(res,va);
-		return res[0]+res[1]+res[2]+res[3];
+		if(Config::use_sse){
+			__m128 va=_mm_load_ps(&a.r);
+			__m128 vb=_mm_load_ps(&b.r);
+			va=_mm_mul_ps(va,vb);
+			float res[4];
+			_mm_store_ps(res,va);
+			return res[0]+res[1]+res[2]+res[3];
+		}else{
+			return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
+		}
 		#else
 		return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
 		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_loadu_pd(&a.r);
-			__m256d vb=_mm256_loadu_pd(&b.r);
-			va=_mm256_mul_pd(va,vb);
-			double res[4];
-			_mm256_store_pd(res,va);
-			return res[0]+res[1]+res[2]+res[3];
+			if(Config::use_avx2){
+				__m256d va=_mm256_loadu_pd(&a.r);
+				__m256d vb=_mm256_loadu_pd(&b.r);
+				va=_mm256_mul_pd(va,vb);
+				double res[4];
+				_mm256_store_pd(res,va);
+				return res[0]+res[1]+res[2]+res[3];
+			}else{
+				return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
+			}
+			
 			#else
 			return a.r*b.r+a.i*b.i+a.j*b.j+a.k*b.k;
 			#endif
@@ -1460,30 +1627,38 @@ MAYBE_CONSTEXPR Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &
 		Quaternion<T> q;
 		if constexpr(std::is_same<T,float>::value){
 			#ifdef __SSE__
-			__m128 va=_mm_load_ps(&a.r);
-			__m128 vb=_mm_load_ps(&b.r);
-			vb=_mm_mul_ps(vb,_mm_set_ps(sign,sign,sign,sign));
-			vb=_mm_sub_ps(vb,va);
-			vb=_mm_mul_ps(vb,_mm_set_ps(t,t,t,t));
-			va=_mm_add_ps(va,vb);
-			float asd[4];
-			_mm_store_ps(asd,va);
-			q=Quaternion<T>(asd[0],asd[1],asd[2],asd[3]);
+			if(Config::use_sse){
+				__m128 va=_mm_load_ps(&a.r);
+				__m128 vb=_mm_load_ps(&b.r);
+				vb=_mm_mul_ps(vb,_mm_set_ps(sign,sign,sign,sign));
+				vb=_mm_sub_ps(vb,va);
+				vb=_mm_mul_ps(vb,_mm_set_ps(t,t,t,t));
+				va=_mm_add_ps(va,vb);
+				float asd[4];
+				_mm_store_ps(asd,va);
+				q=Quaternion<T>(asd[0],asd[1],asd[2],asd[3]);
+			}else{
+				q=a+(b*sign-a)*t;
+			}
 			#else
 			q=a+(b*sign-a)*t;
 			#endif
 		}else{
 			if constexpr(std::is_same<T,double>::value){
 				#ifdef __AVX2__
-				__m256d va=_mm256_loadu_pd(&a.r);
-				__m256d vb=_mm256_loadu_pd(&b.r);
-				vb=_mm256_mul_pd(vb,_mm256_set_pd(sign,sign,sign,sign));
-				vb=_mm256_sub_pd(vb,va);
-				vb=_mm256_mul_pd(vb,_mm256_set_pd(t,t,t,t));
-				va=_mm256_add_pd(va,vb);
-				double asd[4];
-				_mm256_store_pd(asd,va);
-				q=Quaternion<T>(asd[0],asd[1],asd[2],asd[3]);
+				if(Config::use_avx2){
+					__m256d va=_mm256_loadu_pd(&a.r);
+					__m256d vb=_mm256_loadu_pd(&b.r);
+					vb=_mm256_mul_pd(vb,_mm256_set_pd(sign,sign,sign,sign));
+					vb=_mm256_sub_pd(vb,va);
+					vb=_mm256_mul_pd(vb,_mm256_set_pd(t,t,t,t));
+					va=_mm256_add_pd(va,vb);
+					double asd[4];
+					_mm256_store_pd(asd,va);
+					q=Quaternion<T>(asd[0],asd[1],asd[2],asd[3]);
+				}else{
+					q=a+(b*sign-a)*t;
+				}
 				#else
 				q=a+(b*sign-a)*t;
 				#endif
@@ -1500,28 +1675,36 @@ MAYBE_CONSTEXPR Quaternion<T> slerp(const Quaternion<T> &a,const Quaternion<T> &
 	T s1=std::cos(theta)-d*s2;
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		__m128 va=_mm_load_ps(&a.r),vb=_mm_load_ps(&b.r);
-		vb=_mm_mul_ps(vb,_mm_set_ps(sign,sign,sign,sign));
-		vb=_mm_mul_ps(vb,_mm_set_ps(s2,s2,s2,s2));
-		va=_mm_mul_ps(va,_mm_set_ps(s1,s1,s1,s1));
-		__m128 vc=_mm_add_ps(va,vb);
-		float de[4];
-		_mm_store_ps(de,vc);
-		return Quaternion<T>(de[0],de[1],de[2],de[3]);
+		if(Config::use_sse){
+			__m128 va=_mm_load_ps(&a.r),vb=_mm_load_ps(&b.r);
+			vb=_mm_mul_ps(vb,_mm_set_ps(sign,sign,sign,sign));
+			vb=_mm_mul_ps(vb,_mm_set_ps(s2,s2,s2,s2));
+			va=_mm_mul_ps(va,_mm_set_ps(s1,s1,s1,s1));
+			__m128 vc=_mm_add_ps(va,vb);
+			float de[4];
+			_mm_store_ps(de,vc);
+			return Quaternion<T>(de[0],de[1],de[2],de[3]);
+		}else{
+			return (a*s1)+(b*sign*s2);
+		}
 		#else
 		return (a*s1)+(b*sign*s2);
 		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			__m256d va=_mm256_loadu_pd(&a.r),vb=_mm256_loadu_pd(&b.r);
-			vb=_mm256_mul_pd(vb,_mm256_set_pd(sign,sign,sign,sign));
-			vb=_mm256_mul_pd(vb,_mm256_set_pd(s2,s2,s2,s2));
-			va=_mm256_mul_pd(va,_mm256_set_pd(s1,s1,s1,s1));
-			__m256d vc=_mm256_add_pd(va,vb);
-			double de[4];
-			_mm256_store_pd(de,vc);
-			return Quaternion<T>(de[0],de[1],de[2],de[3]);
+			if(Config::use_avx2){
+				__m256d va=_mm256_loadu_pd(&a.r),vb=_mm256_loadu_pd(&b.r);
+				vb=_mm256_mul_pd(vb,_mm256_set_pd(sign,sign,sign,sign));
+				vb=_mm256_mul_pd(vb,_mm256_set_pd(s2,s2,s2,s2));
+				va=_mm256_mul_pd(va,_mm256_set_pd(s1,s1,s1,s1));
+				__m256d vc=_mm256_add_pd(va,vb);
+				double de[4];
+				_mm256_store_pd(de,vc);
+				return Quaternion<T>(de[0],de[1],de[2],de[3]);
+			}else{
+				return (a*s1)+(b*sign*s2);
+			}
 			#else
 			return (a*s1)+(b*sign*s2);
 			#endif
@@ -1546,30 +1729,39 @@ MAYBE_CONSTEXPR Quaternion<T> nlerp(const Quaternion<T> &a,const Quaternion<T> &
 	Quaternion<T> q;
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		T ont=(T(1)-t);
-		__m128 va=_mm_load_ps(&a.r);
-		__m128 vb=_mm_load_ps(&b.r);
-		va=_mm_mul_ps(va,_mm_set_ps(ont,ont,ont,ont));
-		vb=_mm_mul_ps(vb,_mm_set_ps(t,t,t,t));
-		__m128 vc=_mm_add_ps(va,vb);
-		float res[4];
-		_mm_store_ps(res,vc);
-		q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+		if(Config::use_sse){
+			T ont=(T(1)-t);
+			__m128 va=_mm_load_ps(&a.r);
+			__m128 vb=_mm_load_ps(&b.r);
+			va=_mm_mul_ps(va,_mm_set_ps(ont,ont,ont,ont));
+			vb=_mm_mul_ps(vb,_mm_set_ps(t,t,t,t));
+			__m128 vc=_mm_add_ps(va,vb);
+			float res[4];
+			_mm_store_ps(res,vc);
+			q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+		}else{
+			q=a*(T(1)-t)+b2*t;
+		}
+		
 		#else
 		q=a*(T(1)-t)+b2*t;
 		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			T ont=(T(1)-t);
-			__m256d va=_mm256_load_pd(&a.r);
-			__m256d vb=_mm256_load_pd(&b.r);
-			va=_mm256_mul_pd(va,_mm256_set_pd(ont,ont,ont,ont));
-			vb=_mm256_mul_pd(vb,_mm256_set_pd(t,t,t,t));
-			__m256d vc=_mm256_add_pd(va,vb);
-			double res[4];
-			_mm256_store_pd(res,vc);
-			q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+			if(Config::use_avx2){
+				T ont=(T(1)-t);
+				__m256d va=_mm256_loadu_pd(&a.r);
+				__m256d vb=_mm256_loadu_pd(&b.r);
+				va=_mm256_mul_pd(va,_mm256_set_pd(ont,ont,ont,ont));
+				vb=_mm256_mul_pd(vb,_mm256_set_pd(t,t,t,t));
+				__m256d vc=_mm256_add_pd(va,vb);
+				double res[4];
+				_mm256_store_pd(res,vc);
+				q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+			}else{
+				q=a*(T(1)-t)+b2*t;
+			}
 			#else
 			q=a*(T(1)-t)+b2*t;
 			#endif
@@ -1583,11 +1775,18 @@ MAYBE_CONSTEXPR Quaternion<T> nlerp(const Quaternion<T> &a,const Quaternion<T> &
 		T inorm=T(1)/std::sqrt(normsq);
 		if constexpr(std::is_same<T,float>::value){
 			#ifdef __SSE__
-			__m128 vq=_mm_load_ps(&q.r);
-			vq=_mm_mul_ps(vq,_mm_set_ps(inorm,inorm,inorm,inorm));
-			float res[4];
-			_mm_store_ps(res,vq);
-			q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+			if(Config::use_sse){
+				__m128 vq=_mm_load_ps(&q.r);
+				vq=_mm_mul_ps(vq,_mm_set_ps(inorm,inorm,inorm,inorm));
+				float res[4];
+				_mm_store_ps(res,vq);
+				q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+			}else{
+				q.r*=inorm;
+				q.i*=inorm;
+				q.j*=inorm;
+				q.k*=inorm;
+			}
 			#else
 			q.r*=inorm;
 			q.i*=inorm;
@@ -1597,11 +1796,18 @@ MAYBE_CONSTEXPR Quaternion<T> nlerp(const Quaternion<T> &a,const Quaternion<T> &
 		}else{
 			if constexpr(std::is_same<T,double>::value){
 				#ifdef __AVX2__
-				__m256d vq=_mm256_loadu_pd(&q.r);
-				vq=_mm256_mul_pd(vq,_mm256_set_pd(inorm,inorm,inorm,inorm));
-				double res[4];
-				_mm256_store_pd(res,vq);
-				q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+				if(Config::use_avx2){
+					__m256d vq=_mm256_loadu_pd(&q.r);
+					vq=_mm256_mul_pd(vq,_mm256_set_pd(inorm,inorm,inorm,inorm));
+					double res[4];
+					_mm256_store_pd(res,vq);
+					q=Quaternion<T>(res[0],res[1],res[2],res[3]);
+				}else{
+					q.r*=inorm;
+					q.i*=inorm;
+					q.j*=inorm;
+					q.k*=inorm;
+				}
 				#else
 				q.r*=inorm;
 				q.i*=inorm;
@@ -1707,19 +1913,24 @@ MAYBE_CONSTEXPR Quaternion<T> omega(const Quaternion<T> &a,int n,int k){
 	T r=abs(a),theta=a.angle();
 	if constexpr(std::is_same<T,float>::value){
 		#ifdef __SSE__
-		T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k),ipa=T(1)/pa,ty=(theta+2*Constants::PI<T>*k)/n,ppow=std::pow(r,T(1)/n),st=std::sin(ty),ct=std::cos(ty);
-		float rst[4]={0.0,a.i,a.j,a.k};
-		__m128 u=_mm_load_ps(&rst[0]);
-		u=_mm_mul_ps(u,_mm_set_ps(ipa,ipa,ipa,ipa));
-		__m128 im=_mm_mul_ps(u,_mm_set_ps(st,st,st,st));
-		float ds[4];
-		_mm_store_ps(ds,im);
-		ds[0]=ct;
-		__m128 sec=_mm_load_ps(&ds[0]);
-		sec=_mm_mul_ps(sec,_mm_set_ps(ppow,ppow,ppow,ppow));
-		float ret[4];
-		_mm_store_ps(ret,sec);
-		return Quaternion<T>(ret[0],ret[1],ret[2],ret[3]);
+		if(Config::use_sse){
+			T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k),ipa=T(1)/pa,ty=(theta+2*Constants::PI<T>*k)/n,ppow=std::pow(r,T(1)/n),st=std::sin(ty),ct=std::cos(ty);
+			float rst[4]={0.0,a.i,a.j,a.k};
+			__m128 u=_mm_load_ps(&rst[0]);
+			u=_mm_mul_ps(u,_mm_set_ps(ipa,ipa,ipa,ipa));
+			__m128 im=_mm_mul_ps(u,_mm_set_ps(st,st,st,st));
+			float ds[4];
+			_mm_store_ps(ds,im);
+			ds[0]=ct;
+			__m128 sec=_mm_load_ps(&ds[0]);
+			sec=_mm_mul_ps(sec,_mm_set_ps(ppow,ppow,ppow,ppow));
+			float ret[4];
+			_mm_store_ps(ret,sec);
+			return Quaternion<T>(ret[0],ret[1],ret[2],ret[3]);
+		}else{
+			Quaternion<T> u=pure(a)/std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
+			return std::pow(r,T(1)/n)*(std::cos((theta+2*Constants::PI<T>*k)/n)+u*std::sin((theta+2*Constants::PI<T>*k)/n));
+		}
 		#else
 		Quaternion<T> u=pure(a)/std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 		return std::pow(r,T(1)/n)*(std::cos((theta+2*Constants::PI<T>*k)/n)+u*std::sin((theta+2*Constants::PI<T>*k)/n));
@@ -1727,19 +1938,24 @@ MAYBE_CONSTEXPR Quaternion<T> omega(const Quaternion<T> &a,int n,int k){
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k),ipa=T(1)/pa,ty=(theta+2*Constants::PI<T>*k)/n,ppow=std::pow(r,T(1)/n),st=std::sin(ty),ct=std::cos(ty);
-			double rst[4]={0.0,a.i,a.j,a.k};
-			__m256d u=_mm256_load_pd(&rst[0]);
-			u=_mm256_mul_pd(u,_mm256_set_pd(ipa,ipa,ipa,ipa));
-			__m256d im=_mm256_mul_pd(u,_mm256_set_pd(st,st,st,st));
-			double ds[4];
-			_mm256_store_pd(ds,im);
-			ds[0]=ct;
-			__m256d sec=_mm256_load_pd(&ds[0]);
-			sec=_mm256_mul_pd(sec,_mm256_set_pd(ppow,ppow,ppow,ppow));
-			double ret[4];
-			_mm256_store_pd(ret,sec);
-			return Quaternion<T>(ret[0],ret[1],ret[2],ret[3]);
+			if(Config::use_avx2){
+				T pa=std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k),ipa=T(1)/pa,ty=(theta+2*Constants::PI<T>*k)/n,ppow=std::pow(r,T(1)/n),st=std::sin(ty),ct=std::cos(ty);
+				double rst[4]={0.0,a.i,a.j,a.k};
+				__m256d u=_mm256_loadu_pd(&rst[0]);
+				u=_mm256_mul_pd(u,_mm256_set_pd(ipa,ipa,ipa,ipa));
+				__m256d im=_mm256_mul_pd(u,_mm256_set_pd(st,st,st,st));
+				double ds[4];
+				_mm256_store_pd(ds,im);
+				ds[0]=ct;
+				__m256d sec=_mm256_loadu_pd(&ds[0]);
+				sec=_mm256_mul_pd(sec,_mm256_set_pd(ppow,ppow,ppow,ppow));
+				double ret[4];
+				_mm256_store_pd(ret,sec);
+				return Quaternion<T>(ret[0],ret[1],ret[2],ret[3]);
+			}else{
+				Quaternion<T> u=pure(a)/std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
+				return std::pow(r,T(1)/n)*(std::cos((theta+2*Constants::PI<T>*k)/n)+u*std::sin((theta+2*Constants::PI<T>*k)/n));
+			}
 			#else
 			Quaternion<T> u=pure(a)/std::sqrt(a.i*a.i+a.j*a.j+a.k*a.k);
 			return std::pow(r,T(1)/n)*(std::cos((theta+2*Constants::PI<T>*k)/n)+u*std::sin((theta+2*Constants::PI<T>*k)/n));
@@ -1762,30 +1978,40 @@ MAYBE_CONSTEXPR Quaternion<T> sin(const Quaternion<T> &a){
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
-	#ifdef __SSE__
-	float rst[4]={0.0,a.i,a.j,a.k};
-	__m128 r=_mm_load_ps(&rst[0]);
-	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
-	float cs=std::cos(a.r)*std::sinh(pa);
-	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
-	float das[4];
-	_mm_store_ps(das,df);
-	return Quaternion<T>(das[0]+std::sin(a.r)*std::cosh(pa),das[1],das[2],das[3]);
-	#else
-	Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
-	return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
-	#endif
+		#ifdef __SSE__
+		if(Config::use_sse){
+			float rst[4]={0.0,a.i,a.j,a.k};
+			__m128 r=_mm_load_ps(&rst[0]);
+			r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+			float cs=std::cos(a.r)*std::sinh(pa);
+			__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
+			float das[4];
+			_mm_store_ps(das,df);
+			return Quaternion<T>(das[0]+std::sin(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+		}else{
+			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
+		}
+		#else
+		Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
+		return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
+		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			double rst[4]={T(0),a.i,a.j,a.k};
-			__m256d r=_mm256_loadu_pd(&rst[0]);
-			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
-			double cs=std::cos(a.r)*std::sinh(pa);
-			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
-			double das[4];
-			_mm256_store_pd(das,df);
-			return Quaternion<T>(das[0]+std::sin(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+			if(Config::use_avx2){
+				double rst[4]={T(0),a.i,a.j,a.k};
+				__m256d r=_mm256_loadu_pd(&rst[0]);
+				r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+				double cs=std::cos(a.r)*std::sinh(pa);
+				__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
+				double das[4];
+				_mm256_store_pd(das,df);
+				return Quaternion<T>(das[0]+std::sin(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+			}else{
+				Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
+				return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
+			}
 			#else
 			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::sin(a.r)*std::cosh(pa)+u*std::cos(a.r)*std::sinh(pa);
@@ -1807,30 +2033,40 @@ MAYBE_CONSTEXPR Quaternion<T> cos(const Quaternion<T> &a){
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
-	#ifdef __SSE__
-	float rst[4]={T(0),a.i,a.j,a.k};
-	__m128 r=_mm_load_ps(&rst[0]);
-	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
-	float cs=-std::sin(a.r)*std::sinh(pa);
-	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
-	float das[4];
-	_mm_store_ps(das,df);
-	return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
-	#else
-	Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
-	return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
-	#endif
+		#ifdef __SSE__
+		if(Config::use_sse){
+			float rst[4]={T(0),a.i,a.j,a.k};
+			__m128 r=_mm_load_ps(&rst[0]);
+			r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+			float cs=-std::sin(a.r)*std::sinh(pa);
+			__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
+			float das[4];
+			_mm_store_ps(das,df);
+			return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+		}else{
+			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
+		}
+		#else
+		Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
+		return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
+		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			double rst[4]={0.0,a.i,a.j,a.k};
-			__m256d r=_mm256_loadu_pd(&rst[0]);
-			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
-			double cs=-std::sin(a.r)*std::sinh(pa);
-			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
-			double das[4];
-			_mm256_store_pd(das,df);
-			return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+			if(Config::use_avx2){
+				double rst[4]={0.0,a.i,a.j,a.k};
+				__m256d r=_mm256_loadu_pd(&rst[0]);
+				r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+				double cs=-std::sin(a.r)*std::sinh(pa);
+				__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
+				double das[4];
+				_mm256_store_pd(das,df);
+				return Quaternion<T>(das[0]+std::cos(a.r)*std::cosh(pa),das[1],das[2],das[3]);
+			}else{
+				Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
+				return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
+			}
 			#else
 			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::cos(a.r)*std::cosh(pa)-u*std::sin(a.r)*std::sinh(pa);
@@ -1897,30 +2133,40 @@ MAYBE_CONSTEXPR Quaternion<T> sinh(const Quaternion<T> &a){
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
-	#ifdef __SSE__
-	float rst[4]={0.0,a.i,a.j,a.k};
-	__m128 r=_mm_load_ps(&rst[0]);
-	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
-	float cs=std::cosh(a.r)*std::sin(pa);
-	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
-	float das[4];
-	_mm_store_ps(das,df);
-	return Quaternion<T>(das[0]+std::sinh(a.r)*std::cos(pa),das[1],das[2],das[3]);
-	#else
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
-	return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
-	#endif
+		#ifdef __SSE__
+		if(Config::use_sse){
+			float rst[4]={0.0,a.i,a.j,a.k};
+			__m128 r=_mm_load_ps(&rst[0]);
+			r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+			float cs=std::cosh(a.r)*std::sin(pa);
+			__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
+			float das[4];
+			_mm_store_ps(das,df);
+			return Quaternion<T>(das[0]+std::sinh(a.r)*std::cos(pa),das[1],das[2],das[3]);
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
+		}
+		#else
+		Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+		return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
+		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			double rst[4]={0.0,a.i,a.j,a.k};
-			__m256d r=_mm256_loadu_pd(&rst[0]);
-			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
-			double cs=std::cosh(a.r)*std::sin(pa);
-			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
-			double das[4];
-			_mm256_store_pd(das,df);
-			return Quaternion<T>(das[0]+std::sinh(a.r)*std::cos(pa),das[1],das[2],das[3]);
+			if(Config::use_avx2){
+				double rst[4]={0.0,a.i,a.j,a.k};
+				__m256d r=_mm256_loadu_pd(&rst[0]);
+				r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+				double cs=std::cosh(a.r)*std::sin(pa);
+				__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
+				double das[4];
+				_mm256_store_pd(das,df);
+				return Quaternion<T>(das[0]+std::sinh(a.r)*std::cos(pa),das[1],das[2],das[3]);
+			}else{
+				Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+				return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
+			}
 			#else
 			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::sinh(a.r)*std::cos(pa)+u*std::cosh(a.r)*std::sin(pa);
@@ -1942,30 +2188,40 @@ MAYBE_CONSTEXPR Quaternion<T> cosh(const Quaternion<T> &a){
 	}
 	T ipa=T(1)/pa;
 	if constexpr(std::is_same<T,float>::value){
-	#ifdef __SSE__
-	float rst[4]={0.0,a.i,a.j,a.k};
-	__m128 r=_mm_load_ps(&rst[0]);
-	r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
-	float cs=std::sinh(a.r)*std::sin(pa);
-	__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
-	float das[4];
-	_mm_store_ps(das,df);
-	return Quaternion<T>(das[0]+std::cosh(a.r)*std::cos(pa),das[1],das[2],das[3]);
-	#else
-	Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
-	return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
-	#endif
+		#ifdef __SSE__
+		if(Config::use_sse){
+			float rst[4]={0.0,a.i,a.j,a.k};
+			__m128 r=_mm_load_ps(&rst[0]);
+			r=_mm_mul_ps(r,_mm_set_ps(ipa,ipa,ipa,ipa));
+			float cs=std::sinh(a.r)*std::sin(pa);
+			__m128 df=_mm_mul_ps(r,_mm_set_ps(cs,cs,cs,cs));
+			float das[4];
+			_mm_store_ps(das,df);
+			return Quaternion<T>(das[0]+std::cosh(a.r)*std::cos(pa),das[1],das[2],das[3]);
+		}else{
+			Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+			return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
+		}
+		#else
+		Quaternion<T> u(0.0,a.i*ipa,a.j*ipa,a.k*ipa);
+		return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
+		#endif
 	}else{
 		if constexpr(std::is_same<T,double>::value){
 			#ifdef __AVX2__
-			double rst[4]={0.0,a.i,a.j,a.k};
-			__m256d r=_mm256_loadu_pd(&rst[0]);
-			r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
-			double cs=std::sinh(a.r)*std::sin(pa);
-			__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
-			double das[4];
-			_mm256_store_pd(das,df);
-			return Quaternion<T>(das[0]+std::cosh(a.r)*std::cos(pa),das[1],das[2],das[3]);
+			if(Config::use_avx2){
+				double rst[4]={0.0,a.i,a.j,a.k};
+				__m256d r=_mm256_loadu_pd(&rst[0]);
+				r=_mm256_mul_pd(r,_mm256_set_pd(ipa,ipa,ipa,ipa));
+				double cs=std::sinh(a.r)*std::sin(pa);
+				__m256d df=_mm256_mul_pd(r,_mm256_set_pd(cs,cs,cs,cs));
+				double das[4];
+				_mm256_store_pd(das,df);
+				return Quaternion<T>(das[0]+std::cosh(a.r)*std::cos(pa),das[1],das[2],das[3]);
+			}else{
+				Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
+				return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
+			}
 			#else
 			Quaternion<T> u(T(0),a.i*ipa,a.j*ipa,a.k*ipa);
 			return std::cosh(a.r)*std::cos(pa)+u*std::sinh(a.r)*std::sin(pa);
